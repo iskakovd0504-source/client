@@ -144,7 +144,7 @@ const checkExpirations = () => {
 };
 setInterval(checkExpirations, 60000); // Проверка раз в минуту
 
-const ADMIN_KEY = process.env.ADMIN_KEY || 'AD-KZ-DEFAULT'; // Берется из .env
+const ADMIN_KEY = process.env.ADMIN_KEY; // Всегда берется ТОЛЬКО из .env
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
