@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -143,6 +144,8 @@ const checkExpirations = () => {
 };
 setInterval(checkExpirations, 60000); // Проверка раз в минуту
 
+const ADMIN_KEY = process.env.ADMIN_KEY || 'AD-KZ-DEFAULT'; // Берется из .env
+
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
@@ -157,7 +160,19 @@ io.on('connection', (socket) => {
   };
 
   socket.on('join', (data) => {
-    players[socket.id].nickname = data.nickname;
+    let finalNickname = data.nickname;
+    
+    // Проверка прав админа
+    if (data.nickname === 'Admin') {
+       if (data.password !== ADMIN_KEY) {
+          console.warn(`[SECURITY] Unauthorized Admin login attempt from ${socket.id}`);
+          finalNickname = 'Runner-' + Math.floor(Math.random()*1000);
+       } else {
+          console.log(`[SECURITY] Admin access granted to ${socket.id}`);
+       }
+    }
+
+    players[socket.id].nickname = finalNickname;
     players[socket.id].cargo = data.cargo;
     players[socket.id].deviceId = data.deviceId;
 
@@ -174,7 +189,13 @@ io.on('connection', (socket) => {
     io.emit('playersUpdate', players);
     socket.emit('cargoState', droppedCargos);
     socket.emit('billboardState', billboards);
-    socket.emit('pendingState', pendingRequests);
+    
+    if (finalNickname === 'Admin') {
+        socket.emit('pendingState', pendingRequests);
+    } else if (data.nickname === 'Admin') {
+        // Если пытался зайти как админ, но не прошел проверку
+        socket.emit('gameNotification', { message: '⛔ Invalid Admin Key!', type: 'error' });
+    }
   });
 
   socket.on('move', (data) => {
@@ -261,7 +282,8 @@ io.on('connection', (socket) => {
        color: data.color,
        days: data.days || 7,
        price: data.price || 0,
-       requesterNick: players[socket.id]?.nickname || 'Anon'
+       requesterNick: players[socket.id]?.nickname || 'Anon',
+       createdAt: Date.now()
     };
     console.log(`[ECONOMY] New request for BB #${request.bbId} for ${request.days} days`);
     pendingRequests.push(request);
@@ -269,6 +291,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('adminApprove', (requestId) => {
+    if (players[socket.id]?.nickname !== 'Admin') return; // SECURITY
+
     const idx = pendingRequests.findIndex(r => r.requestId === requestId);
     if (idx !== -1) {
       const req = pendingRequests[idx];
@@ -288,6 +312,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('adminReject', (requestId) => {
+    if (players[socket.id]?.nickname !== 'Admin') return; // SECURITY
+
     pendingRequests = pendingRequests.filter(r => r.requestId !== requestId);
     io.emit('pendingState', pendingRequests);
   });

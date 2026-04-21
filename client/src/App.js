@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Sky, Plane, Box, Text } from '@react-three/drei';
 import { io } from 'socket.io-client';
 import * as THREE from 'three';
+import { KASPI_QR_BASE64 } from './KaspiQR';
 
 const socket = io('http://localhost:3001');
 
@@ -16,6 +17,21 @@ const CARGO_TYPES = [
 
 const MAP_LIMIT = 4000;
 const ALATAU_Z = -3500;
+
+const DELIVERY_POINTS = [
+  // FRONT (Top of map)
+  { id: 'f1', x: 0, z: ALATAU_Z, rot: 0, label: "CENTRAL FRONT HUB" },
+  { id: 'f2', x: -2000, z: ALATAU_Z, rot: 0, label: "WEST FRONT HUB" },
+  { id: 'f3', x: 2000, z: ALATAU_Z, rot: 0, label: "EAST FRONT HUB" },
+  // LEFT SIDE
+  { id: 'l1', x: -3800, z: -2500, rot: Math.PI / 2, label: "WEST COAST ALPHA" },
+  { id: 'l2', x: -3800, z: -1000, rot: Math.PI / 2, label: "WEST COAST BETA" },
+  { id: 'l3', x: -3800, z: 500, rot: Math.PI / 2, label: "WEST COAST GAMMA" },
+  // RIGHT SIDE
+  { id: 'r1', x: 3800, z: -2500, rot: -Math.PI / 2, label: "EAST COAST ALPHA" },
+  { id: 'r2', x: 3800, z: -1000, rot: -Math.PI / 2, label: "EAST COAST BETA" },
+  { id: 'r3', x: 3800, z: 500, rot: -Math.PI / 2, label: "EAST COAST GAMMA" },
+];
 
 // Deterministic Pseudo-Random Generator (чтобы у всех игроков была идентичная карта препятствий)
 const LEVEL_OBSTACLES = [];
@@ -181,11 +197,15 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards })
         }
     }
 
-    // Коллизия со зданиями CRYPTOMARKET.KZ в Алатау
+    // Коллизия со зданиями CRYPTOMARKET.KZ (автоматически для всех 9 точек)
     if (!collision) {
-        const hqXs = [0, -2000, 2000];
-        for (const hx of hqXs) {
-            if (Math.abs(nextPos.x - hx) < 205 && Math.abs(nextPos.z - ALATAU_Z) < 105) {
+        for (const pt of DELIVERY_POINTS) {
+            // Учитываем поворот здания для хитбокса
+            const isRotated = Math.abs(pt.rot) > 0.1;
+            const hw = isRotated ? 100 : 200; // Half-width ( world X )
+            const hd = isRotated ? 200 : 100; // Half-depth ( world Z )
+            
+            if (Math.abs(nextPos.x - pt.x) < (hw + 5) && Math.abs(nextPos.z - pt.z) < (hd + 5)) {
                 collision = true;
                 break;
             }
@@ -250,11 +270,13 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards })
              }
          }
 
-         // Коллизия с 3 хабами
+         // Коллизия с 9 хабами
          if (!hitInfo) {
-             const hqXs = [0, -2000, 2000];
-             for (const hx of hqXs) {
-                 if (Math.abs(l.position.x - hx) < 205 && Math.abs(l.position.z - ALATAU_Z) < 105) {
+             for (const pt of DELIVERY_POINTS) {
+                 const isRotated = Math.abs(pt.rot) > 0.1;
+                 const hw = isRotated ? 100 : 200;
+                 const hd = isRotated ? 200 : 100;
+                 if (Math.abs(l.position.x - pt.x) < (hw + 5) && Math.abs(l.position.z - pt.z) < (hd + 5)) {
                      hitInfo = true;
                      break;
                  }
@@ -311,16 +333,23 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards })
        }
     }
 
-    // Сдача груза на любой из трех парковок
+    // Сдача груза на любой из 9 парковок
     if (myPlayerState && myPlayerState.cargo && myPlayerState.cargo.length > 0) {
-       const hqXs = [0, -2000, 2000];
-       let onDeliveryPad = false;
-       for (const hx of hqXs) {
-           if (Math.abs(r.position.x - hx) < 100 && Math.abs(r.position.z - (ALATAU_Z + 250)) < 75) {
-               onDeliveryPad = true;
-               break;
-           }
-       }
+        let onDeliveryPad = false;
+        for (const pt of DELIVERY_POINTS) {
+            // Вычисляем центр площадки с учетом поворота
+            const padX = pt.x + 250 * Math.sin(pt.rot);
+            const padZ = pt.z + 250 * Math.cos(pt.rot);
+            
+            const isRotated = Math.abs(pt.rot) > 0.1;
+            const rangeX = isRotated ? 75 : 100;
+            const rangeZ = isRotated ? 100 : 75;
+
+            if (Math.abs(r.position.x - padX) < rangeX && Math.abs(r.position.z - padZ) < rangeZ) {
+                onDeliveryPad = true;
+                break;
+            }
+        }
        if (onDeliveryPad) {
           socket.emit('deliver');
 
@@ -512,9 +541,9 @@ const OtherPlayers = ({ players, playersRef }) => {
   );
 };
 
-const CryptoMarketHQ = ({ position, label }) => {
+const CryptoMarketHQ = ({ position, rotation = 0, label }) => {
   return (
-    <group position={position}>
+    <group position={position} rotation={[0, rotation, 0]}>
       <Box args={[400, 150, 200]} position={[0, 75, 0]} castShadow receiveShadow>
         <meshStandardMaterial color="#2d3748" />
       </Box>
@@ -575,10 +604,15 @@ const World = ({ billboards }) => {
         <meshStandardMaterial color="#111" />
       </Box>
 
-      {/* 3 CRYPTOMARKET.KZ HQ Buildings */}
-      <CryptoMarketHQ position={[0, 0, ALATAU_Z]} label="GLOBAL DROP-OFF HUB (CENTRAL)" />
-      <CryptoMarketHQ position={[-2000, 0, ALATAU_Z]} label="WEST DROP-OFF HUB" />
-      <CryptoMarketHQ position={[2000, 0, ALATAU_Z]} label="EAST DROP-OFF HUB" />
+      {/* 9 CRYPTOMARKET.KZ HQ Buildings */}
+      {DELIVERY_POINTS.map(pt => (
+          <CryptoMarketHQ 
+            key={pt.id} 
+            position={[pt.x, 0, pt.z]} 
+            rotation={pt.rot} 
+            label={pt.label} 
+          />
+      ))}
 
       {/* Decorative Cyber Towers */}
       <Box args={[50, 300, 50]} position={[-250, 150, ALATAU_Z - 100]}>
@@ -604,6 +638,7 @@ function App() {
 
   const [billboards, setBillboards] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
+  const [adminKey, setAdminKey] = useState(""); // Стейт для пароля админа
   const [nearBb, setNearBb] = useState(null);
   const [rentModal, setRentModal] = useState(false);
   const [adminModal, setAdminModal] = useState(false);
@@ -686,6 +721,7 @@ function App() {
 
   const handleJoin = () => {
     if (nickname.trim()) {
+      // Если это админ, но ключ не введен (хотя бы 1 символ для пробы) - можно добавить проверку тут или на сервере
       let deviceId = localStorage.getItem('cmkz_device_id');
       if (!deviceId) {
          deviceId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
@@ -693,7 +729,7 @@ function App() {
       }
 
       const activeCargo = CARGO_TYPES[Math.floor(Math.random() * CARGO_TYPES.length)];
-      socket.emit('join', { nickname, cargo: [activeCargo], deviceId });
+      socket.emit('join', { nickname, cargo: [activeCargo], deviceId, password: adminKey });
       setInGame(true);
     }
   };
@@ -725,6 +761,16 @@ function App() {
               onChange={e => setNickname(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleJoin()}
             />
+            {nickname.trim().toLowerCase() === 'admin' && (
+              <input 
+                type="password" 
+                placeholder="Admin Secret Key..." 
+                style={{ marginTop: '10px', background: 'rgba(234, 179, 8, 0.1)', border: '1px solid #eab308', borderRadius: '4px', padding: '10px', color: '#fff' }}
+                value={adminKey} 
+                onChange={e => setAdminKey(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleJoin()}
+              />
+            )}
             <button onClick={handleJoin}>ENTER WASTELAND</button>
           </div>
         </div>
@@ -810,7 +856,7 @@ function App() {
 
                       <div className="kaspi-payment">
                          <div className="qr-box">
-                            <div className="mock-qr">KASPI QR</div>
+                            <img src={KASPI_QR_BASE64} alt="Kaspi QR" style={{ width: "150px", height: "auto", display: "block", margin: "0 auto", borderRadius: "8px" }}/>
                          </div>
                          <p>Scan Kaspi QR & Send: <b>{nearBb.prices?.[rentDays] || ({0:{1:1000,7:5000,30:15000},1:{1:2000,7:10000,30:30000},2:{1:500,7:2500,30:7000}}[nearBb.type||0]?.[rentDays]) || 0} KZT</b></p>
                          <p style={{ fontSize: '10px', opacity: 0.7 }}>Message: <b>AD-{nearBb.id}</b></p>
@@ -855,8 +901,11 @@ function App() {
                       ) : (
                          pendingRequests.map(req => (
                             <div key={req.requestId} className="pending-item">
-                               <div className="req-header">
+                                <div className="req-header" style={{ alignItems: 'center' }}>
                                   <span className="req-nick">User: <b>{req.requesterNick}</b></span>
+                                  <span className="req-time" style={{ fontSize: '12px', color: '#eab308', fontWeight: 'bold' }}>
+                                     {req.createdAt ? new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '??:??'}
+                                  </span>
                                   <span className="req-id">AD-{req.bbId}</span>
                                 </div>
                                 <div className="req-body">
