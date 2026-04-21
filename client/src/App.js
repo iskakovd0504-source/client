@@ -33,24 +33,7 @@ const DELIVERY_POINTS = [
   { id: 'r3', x: 3800, z: 500, rot: -Math.PI / 2, label: "EAST COAST GAMMA" },
 ];
 
-// Deterministic Pseudo-Random Generator (чтобы у всех игроков была идентичная карта препятствий)
-const LEVEL_OBSTACLES = [];
-let _seed = 1337;
-function prng() {
-    let x = Math.sin(_seed++) * 10000;
-    return x - Math.floor(x);
-}
-
-for (let i = 0; i < 200; i++) {
-    LEVEL_OBSTACLES.push({
-        id: i,
-        x: prng() * MAP_LIMIT * 1.8 - MAP_LIMIT * 0.9,
-        z: -(prng() * (-ALATAU_Z)) - 100,
-        w: prng() * 50 + 10,
-        h: prng() * 150 + 20,
-        d: prng() * 50 + 10,
-    });
-}
+const LEVEL_OBSTACLES = []; // Пустошь теперь пуста
 const MOCK_ADS = [
   { text: 'AIPROTOCOL.KZ', color: '#00ffff' },
   { text: 'BUY $SOL', color: '#14F195' },
@@ -93,7 +76,7 @@ const VoxelCar = ({ position, rotation, isPremium }) => {
   );
 };
 
-const PlayerController = ({ players, droppedCargos, myPlayerState, billboards }) => {
+const PlayerController = ({ players, droppedCargos, myPlayerState, billboards, adminKey }) => {
   const { camera } = useThree();
   const ref = useRef({
     position: new THREE.Vector3(0, 0, 200),
@@ -101,11 +84,13 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards })
     targetVelocity: 0,
     yaw: 0,
     targetYaw: 0,
+    isRestocking: false, // Флаг для предотвращения спама при получении груза
   });
   const carMeshRef = useRef();
 
   const [keys, setKeys] = useState({});
-  const [lasers, setLasers] = useState([]);
+  const lasersRef = useRef([]); // Переводим лазеры на ref для скорости
+  const [laserCounter, setLaserCounter] = useState(0); // Только для триггера рендера новых лазеров (если нужно, но лучше без него)
 
   useEffect(() => {
     const handleShoot = () => {
@@ -116,11 +101,13 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards })
       const newLaser = {
         id: Date.now() + Math.random(),
         position: position.clone().add(new THREE.Vector3(0, 1.5, 0)).add(direction.clone().multiplyScalar(5)),
-        velocity: direction.multiplyScalar(2500), // Огромная, но видимая глазу скорость
+        velocity: direction.multiplyScalar(2500), 
         yaw: yaw, 
-        life: 30 
+        life: 30,
+        meshRef: React.createRef() // Ссылка для прямого управления мешем
       };
-      setLasers(prev => [...prev, newLaser]);
+      lasersRef.current.push(newLaser);
+      setLaserCounter(c => c + 1); // Форсируем создание нового меша в React один раз
     };
 
     const handleKeyDown = (e) => {
@@ -179,28 +166,20 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards })
     const moveStep = r.velocity * (delta * 60);
     const nextPos = r.position.clone().add(direction.clone().multiplyScalar(moveStep));
 
-    // Проверка коллизий со зданиями и биллбордами
+    // Проверка коллизий только с биллбордами
     let collision = false;
-    for (const obs of LEVEL_OBSTACLES) {
-        if (Math.abs(nextPos.x - obs.x) < (obs.w / 2 + 2.5) &&
-            Math.abs(nextPos.z - obs.z) < (obs.d / 2 + 2.5)) {
+    for (const bb of (billboards || [])) {
+        if (Math.abs(nextPos.x - bb.x) > 100 || Math.abs(nextPos.z - bb.z) > 100) continue;
+        if (Math.hypot(nextPos.x - bb.x, nextPos.z - bb.z) < 10) { 
             collision = true;
             break;
         }
     }
-    if (!collision) {
-        for (const bb of (billboards || [])) {
-           if (Math.hypot(nextPos.x - bb.x, nextPos.z - bb.z) < 10) { // Коллизия с биллбордом
-               collision = true;
-               break;
-           }
-        }
-    }
 
-    // Коллизия со зданиями CRYPTOMARKET.KZ (автоматически для всех 9 точек)
     if (!collision) {
         for (const pt of DELIVERY_POINTS) {
-            // Учитываем поворот здания для хитбокса
+            if (Math.abs(nextPos.x - pt.x) > 400 || Math.abs(nextPos.z - pt.z) > 400) continue;
+            
             const isRotated = Math.abs(pt.rot) > 0.1;
             const hw = isRotated ? 100 : 200; // Half-width ( world X )
             const hd = isRotated ? 200 : 100; // Half-depth ( world Z )
@@ -248,50 +227,27 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards })
       });
     }
 
-    // Лазеры: Проверка на игроков + Проверка на стены!
-    setLasers(prev => {
-      if (prev.length === 0) return prev; // Избегаем бесконечного цикла ре-рендера
-      const rem = [];
-      for(const l of prev) {
+    // Лазеры: Прямое управление через Mutable Ref (без ре-рендера React!)
+    const activeLasers = [];
+    for (const l of lasersRef.current) {
          let hitInfo = false;
          
-         // 1. Коллизии пули со стенами (хитбокс расширен из-за высокой скорости 60+ юнитов/кадр)
-         for (const obs of LEVEL_OBSTACLES) {
-             if (Math.abs(l.position.x - obs.x) < (obs.w / 2 + 20) &&
-                 Math.abs(l.position.z - obs.z) < (obs.d / 2 + 20)) {
-                 hitInfo = true; break;
-             }
-         }
-         if (!hitInfo) {
-             for (const bb of (billboards || [])) {
-                if (Math.hypot(l.position.x - bb.x, l.position.z - bb.z) < 20) {
-                    hitInfo = true; break;
-                }
-             }
+         // Оптимизированная коллизия лазера: только билборды
+         for (const bb of (billboards || [])) {
+            if (Math.abs(l.position.x - bb.x) > 100 || Math.abs(l.position.z - bb.z) > 100) continue;
+            if (Math.hypot(l.position.x - bb.x, l.position.z - bb.z) < 20) {
+                hitInfo = true; break;
+            }
          }
 
-         // Коллизия с 9 хабами
-         if (!hitInfo) {
-             for (const pt of DELIVERY_POINTS) {
-                 const isRotated = Math.abs(pt.rot) > 0.1;
-                 const hw = isRotated ? 100 : 200;
-                 const hd = isRotated ? 200 : 100;
-                 if (Math.abs(l.position.x - pt.x) < (hw + 5) && Math.abs(l.position.z - pt.z) < (hd + 5)) {
-                     hitInfo = true;
-                     break;
-                 }
-             }
-         }
-
-         // 2. Коллизия пули с игроками
          if (!hitInfo) {
              for (const pid in players) {
                 if (pid === socket.id) continue;
                 const target = players[pid];
-                if (!target.cargo) continue; 
+                if (!target.cargo || !target.position) continue; 
                 
                 const dist = l.position.distanceTo(new THREE.Vector3(target.position[0], target.position[1], target.position[2]));
-                if (dist < 25.0) { // Гарантированная регистрация попадания при высокой скорости
+                if (dist < 25.0) { 
                    socket.emit('hit', pid); 
                    hitInfo = true;
                    break;
@@ -299,16 +255,17 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards })
              }
          }
 
-         // Если мы ничего не задели и лазер еще жив, двигаем дальше
          if (!hitInfo && l.life > 0) {
-            const nl = {...l};
-            nl.position.add(nl.velocity.clone().multiplyScalar(delta));
-            nl.life -= 1;
-            rem.push(nl);
+            l.position.add(l.velocity.clone().multiplyScalar(delta));
+            l.life -= 1;
+            // Обновляем позицию меша напрямую
+            if (l.meshRef.current) {
+                l.meshRef.current.position.copy(l.position);
+            }
+            activeLasers.push(l);
          }
-      }
-      return rem;
-    });
+    }
+    lasersRef.current = activeLasers;
 
     // Обновляем позицию напрямую без медленного ре-рендера React!!
     if (carMeshRef.current) {
@@ -327,9 +284,15 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards })
 
        // Если нет груза и вернулся на базу Байконура пешком на колесах, выдаем один новый
        if ((!myPlayerState.cargo || myPlayerState.cargo.length === 0) && r.position.z > 0 && r.position.z < 300) {
-           const newCargo = CARGO_TYPES[Math.floor(Math.random() * CARGO_TYPES.length)];
-           const deviceId = localStorage.getItem('cmkz_device_id');
-           socket.emit('join', { nickname: myPlayerState.nickname, cargo: [newCargo], deviceId });
+            if (!r.isRestocking) {
+                r.isRestocking = true; 
+                const newCargo = CARGO_TYPES[Math.floor(Math.random() * CARGO_TYPES.length)];
+                const deviceId = localStorage.getItem('cmkz_device_id');
+                socket.emit('join', { nickname: myPlayerState.nickname, cargo: [newCargo], deviceId, password: adminKey });
+                
+                // Тайм-аут на склад (1 секунда между попытками взять груз)
+                setTimeout(() => { r.isRestocking = false; }, 1000);
+            }
        }
     }
 
@@ -359,10 +322,14 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards })
           r.velocity = 0;
           r.targetVelocity = 0;
 
-          // Мгновенная выдача нового груза
-          const newCargo = CARGO_TYPES[Math.floor(Math.random() * CARGO_TYPES.length)];
-          const deviceId = localStorage.getItem('cmkz_device_id');
-          socket.emit('join', { nickname: myPlayerState.nickname, cargo: [newCargo], deviceId });
+          // Мгновенная выдача нового груза (с защитой от спама)
+          if (!r.isRestocking) {
+              r.isRestocking = true;
+              const newCargo = CARGO_TYPES[Math.floor(Math.random() * CARGO_TYPES.length)];
+              const deviceId = localStorage.getItem('cmkz_device_id');
+              socket.emit('join', { nickname: myPlayerState.nickname, cargo: [newCargo], deviceId, password: adminKey });
+              setTimeout(() => { r.isRestocking = false; }, 1000);
+          }
        }
     }
   });
@@ -372,9 +339,9 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards })
       <group ref={carMeshRef} position={[0, 0, 200]}>
         <VoxelCar position={[0, 0, 0]} rotation={[0, 0, 0]} isPremium={myPlayerState?.isPremium} />
       </group>
-      {lasers.map(l => (
-        <mesh key={l.id} position={l.position}>
-          <sphereGeometry args={[1.5, 12, 12]} />
+      {lasersRef.current.map(l => (
+        <mesh key={l.id} ref={l.meshRef} position={l.position}>
+          <sphereGeometry args={[1.5, 8, 8]} />
           <meshBasicMaterial color="#ffff00" />
         </mesh>
       ))}
@@ -427,79 +394,93 @@ const CargoBox = ({ item }) => {
         </group>
     );
 };
+// ObstacleInstances удален по просьбе пользователя для минимализма
+
+const BillboardItem = ({ b }) => {
+    const textRef = useRef();
+    const [visible, setVisible] = useState(false);
+
+    useFrame((state) => {
+        const dist = state.camera.position.distanceTo(new THREE.Vector3(b.x, 0, b.z));
+        const shouldBeVisible = dist < 1000; // Увеличиваем до 1км
+        if (visible !== shouldBeVisible) {
+            setVisible(shouldBeVisible);
+        }
+    });
+
+    const isMega = b.type === 1;
+    const isLow = b.type === 2;
+    
+    // Geometry based on type
+    const width = isMega ? 120 : (isLow ? 40 : 60);
+    const height = isMega ? 60 : (isLow ? 20 : 30);
+    const poleHeight = isMega ? 60 : (isLow ? 8 : 40);
+    const boardY = poleHeight + height/2;
+
+    return (
+        <group position={[b.x, 0, b.z]} rotation={[0, b.rotY, 0]}>
+            {/* Poles */}
+            {isMega ? (
+                <>
+                    <Box args={[3, poleHeight, 3]} position={[-width/4, poleHeight/2, 0]} castShadow>
+                        <meshStandardMaterial color="#1a1a1a" />
+                    </Box>
+                    <Box args={[3, poleHeight, 3]} position={[width/4, poleHeight/2, 0]} castShadow>
+                        <meshStandardMaterial color="#1a1a1a" />
+                    </Box>
+                </>
+            ) : (
+                <Box args={[2, poleHeight, 2]} position={[0, poleHeight/2, 0]} castShadow>
+                    <meshStandardMaterial color="#111" />
+                </Box>
+            )}
+
+            {/* The Board */}
+            <Box args={[width, height, 4]} position={[0, boardY, 0]} castShadow>
+                <meshStandardMaterial color="#0a0f1e" emissive={b.color} emissiveIntensity={0.12} />
+            </Box>
+
+            {/* Double Sided Text (LOD optimized via visible prop) */}
+            <group visible={visible}>
+                <Text 
+                    position={[0, boardY, 2.1]} 
+                    fontSize={height/6} 
+                    color={b.color} 
+                    anchorX="center" 
+                    anchorY="middle" 
+                    maxWidth={width * 0.9} 
+                    textAlign="center" 
+                    outlineWidth={0.15} 
+                    outlineColor="#000"
+                >
+                    {b.text}
+                </Text>
+                <Text 
+                    position={[0, boardY, -2.1]} 
+                    rotation={[0, Math.PI, 0]}
+                    fontSize={height/6} 
+                    color={b.color} 
+                    anchorX="center" 
+                    anchorY="middle" 
+                    maxWidth={width * 0.9} 
+                    textAlign="center" 
+                    outlineWidth={0.15} 
+                    outlineColor="#000"
+                >
+                    {b.text}
+                </Text>
+            </group>
+        </group>
+    );
+};
 
 const ObstaclesAndBillboards = ({ billboards }) => {
     return (
         <>
-            {LEVEL_OBSTACLES.map((obj) => (
-                <Box key={`obs-${obj.id}`} position={[obj.x, obj.h/2, obj.z]} args={[obj.w, obj.h, obj.d]} receiveShadow>
-                    <meshStandardMaterial color="#223322" />
-                </Box>
+            {/* Препятствия удалены */}
+            {(billboards || []).map((b) => (
+                <BillboardItem key={`bb-${b.id}`} b={b} />
             ))}
-            {(billboards || []).map((b) => {
-                const isMega = b.type === 1;
-                const isLow = b.type === 2;
-                
-                // Geometry based on type
-                const width = isMega ? 120 : (isLow ? 40 : 60);
-                const height = isMega ? 60 : (isLow ? 20 : 30);
-                const poleHeight = isMega ? 60 : (isLow ? 8 : 40);
-                const boardY = poleHeight + height/2;
-
-                return (
-                    <group key={`bb-${b.id}-${b.text}`} position={[b.x, 0, b.z]} rotation={[0, b.rotY, 0]}>
-                        {/* Poles */}
-                        {isMega ? (
-                            <>
-                                <Box args={[3, poleHeight, 3]} position={[-width/4, poleHeight/2, 0]} castShadow>
-                                    <meshStandardMaterial color="#1a1a1a" />
-                                </Box>
-                                <Box args={[3, poleHeight, 3]} position={[width/4, poleHeight/2, 0]} castShadow>
-                                    <meshStandardMaterial color="#1a1a1a" />
-                                </Box>
-                            </>
-                        ) : (
-                            <Box args={[2, poleHeight, 2]} position={[0, poleHeight/2, 0]} castShadow>
-                                <meshStandardMaterial color="#111" />
-                            </Box>
-                        )}
-
-                        {/* The Board */}
-                        <Box args={[width, height, 4]} position={[0, boardY, 0]} castShadow>
-                            <meshStandardMaterial color="#0a0f1e" emissive={b.color} emissiveIntensity={0.12} />
-                        </Box>
-
-                        {/* Double Sided Text */}
-                        <Text 
-                            position={[0, boardY, 2.1]} 
-                            fontSize={height/6} 
-                            color={b.color} 
-                            anchorX="center" 
-                            anchorY="middle" 
-                            maxWidth={width * 0.9} 
-                            textAlign="center" 
-                            outlineWidth={0.15} 
-                            outlineColor="#000"
-                        >
-                            {b.text}
-                        </Text>
-                        <Text 
-                            position={[0, boardY, -2.1]} 
-                            rotation={[0, Math.PI, 0]}
-                            fontSize={height/6} 
-                            color={b.color} 
-                            anchorX="center" 
-                            anchorY="middle" 
-                            maxWidth={width * 0.9} 
-                            textAlign="center" 
-                            outlineWidth={0.15} 
-                            outlineColor="#000"
-                        >
-                            {b.text}
-                        </Text>
-                    </group>
-                );
-            })}
         </>
     );
 };
@@ -566,7 +547,7 @@ const CryptoMarketHQ = ({ position, rotation = 0, label }) => {
   );
 };
 
-const World = ({ billboards }) => {
+const World = ({ billboards, players }) => {
   return (
     <>
       {/* Голубой туман, который плавно растворяет землю в небо на горизонте */}
@@ -634,6 +615,8 @@ function App() {
   const [inGame, setInGame] = useState(false);
   const [players, setPlayers] = useState({});
   const playersRef = useRef({}); 
+  const nicknameRef = useRef(""); // Реф для актуального ника в сокетах
+  const adminKeyRef = useRef(""); // Реф для актуального пароля в сокетах
   const [droppedCargos, setDroppedCargos] = useState([]);
 
   const [billboards, setBillboards] = useState([]);
@@ -645,6 +628,12 @@ function App() {
   const [rentText, setRentText] = useState("");
   const [rentColor, setRentColor] = useState("#eab308");
   const [rentDays, setRentDays] = useState(7); // Срок аренды (7 дней по умолчанию)
+  const [gameNotification, setGameNotification] = useState(null);
+
+  const showNotification = (msg, type = 'info') => {
+    setGameNotification({ msg, type });
+    setTimeout(() => setGameNotification(null), 4000);
+  };
 
   // Функция getPrice больше не нужна, так как цены приходят с сервера
 
@@ -666,9 +655,30 @@ function App() {
         console.log('[DEBUG] RECEIVED NEW BILLBOARD STATE:', data.length, 'items');
         setBillboards([...data]); // Force new array for state trigger
     });
+    socket.on('billboardUpdate', (updated) => {
+        setBillboards(prev => prev.map(b => b.id === updated.id ? updated : b));
+    });
     socket.on('pendingState', (data) => {
         console.log('[DEBUG] Received pending requests:', data);
         setPendingRequests(data);
+    });
+    socket.on('gameNotification', (data) => {
+        showNotification(data.message, data.type);
+    });
+
+    // Авто-реконнект: теперь берем данные из REFS, которые всегда актуальны
+    socket.on('connect', () => {
+        if (nicknameRef.current) {
+            console.log('[SOCKET] Reconnected, re-syncing identity for:', nicknameRef.current);
+            const deviceId = localStorage.getItem('cmkz_device_id');
+            const activeCargo = playersRef.current[socket.id]?.cargo || [];
+            socket.emit('join', { 
+                nickname: nicknameRef.current, 
+                cargo: activeCargo, 
+                deviceId, 
+                password: adminKeyRef.current 
+            });
+        }
     });
 
     return () => {
@@ -758,7 +768,10 @@ function App() {
               placeholder="Enter alias..." 
               maxLength={15}
               value={nickname} 
-              onChange={e => setNickname(e.target.value)}
+              onChange={e => {
+                setNickname(e.target.value);
+                nicknameRef.current = e.target.value;
+              }}
               onKeyDown={e => e.key === 'Enter' && handleJoin()}
             />
             {nickname.trim().toLowerCase() === 'admin' && (
@@ -767,7 +780,10 @@ function App() {
                 placeholder="Admin Secret Key..." 
                 style={{ marginTop: '10px', background: 'rgba(234, 179, 8, 0.1)', border: '1px solid #eab308', borderRadius: '4px', padding: '10px', color: '#fff' }}
                 value={adminKey} 
-                onChange={e => setAdminKey(e.target.value)}
+                onChange={e => {
+                    setAdminKey(e.target.value);
+                    adminKeyRef.current = e.target.value;
+                }}
                 onKeyDown={e => e.key === 'Enter' && handleJoin()}
               />
             )}
@@ -877,7 +893,8 @@ function App() {
                                   price: price
                                });
                                setRentModal(false);
-                               alert('Request sent! Text will be updated after verification.');
+                               showNotification('Request sent! Verification pending.', 'success');
+
                             }
                          }}>SUBMIT & PAY</button>
                       </div>
@@ -1028,13 +1045,19 @@ function App() {
                  </button>
             )}
           </div>
+
+          {gameNotification && (
+            <div className={`game-notification ${gameNotification.type}`}>
+               {gameNotification.msg}
+            </div>
+          )}
         </div>
       )}
 
       {/* Увеличиваем дальность отрисовки (far: 10000), чтобы не было черных ям */}
       <Canvas shadows camera={{ position: [0, 5, 10], fov: 60, far: 10000 }}>
-        <World billboards={billboards} />
-        {inGame && <PlayerController players={playersRef.current} droppedCargos={droppedCargos} myPlayerState={me} billboards={billboards} />}
+        <World billboards={billboards} players={players} />
+        {inGame && <PlayerController players={playersRef.current} droppedCargos={droppedCargos} myPlayerState={me} billboards={billboards} adminKey={adminKey} />}
         {inGame && <OtherPlayers players={players} playersRef={playersRef} />}
         {inGame && droppedCargos.map(item => <CargoBox key={item.id} item={item} />)}
       </Canvas>

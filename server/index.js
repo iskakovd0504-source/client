@@ -139,7 +139,14 @@ const checkExpirations = () => {
     });
     if (changed) {
         saveDB();
-        io.emit('billboardState', billboards);
+        // Раньше слали всё: io.emit('billboardState', billboards);
+        // Теперь шлем только измененные (в данном случае проще переслать те, что обновились)
+        billboards.forEach(b => {
+             if (b.expiresAt === null && b.text.startsWith('AD SPACE #')) {
+                 // Это упрощенный хак для рассылки только "сброшенных"
+                 io.emit('billboardUpdate', b);
+             }
+        });
     }
 };
 setInterval(checkExpirations, 60000); // Проверка раз в минуту
@@ -176,8 +183,15 @@ io.on('connection', (socket) => {
     players[socket.id].cargo = data.cargo;
     players[socket.id].deviceId = data.deviceId;
 
-    // Восстанавливаем очки и статус из базы данных для этого устройства
+    // ПРЕДОТВРАЩЕНИЕ РАЗДВОЕНИЯ: Если игрок с таким же deviceId уже есть, удаляем старую сессию
     if (data.deviceId) {
+       Object.keys(players).forEach(pid => {
+           if (pid !== socket.id && players[pid].deviceId === data.deviceId) {
+               console.log(`[CLEANUP] Removing ghost player ${pid} for device ${data.deviceId}`);
+               delete players[pid];
+           }
+       });
+
        if (globalDB[data.deviceId]) {
            players[socket.id].points = globalDB[data.deviceId].points;
            players[socket.id].isPremium = globalDB[data.deviceId].isPremium || false;
@@ -304,7 +318,7 @@ io.on('connection', (socket) => {
         const durationMs = req.days * 24 * 60 * 60 * 1000;
         bb.expiresAt = Date.now() + durationMs;
         saveDB();
-        io.emit('billboardState', billboards);
+        io.emit('billboardUpdate', bb);
         console.log(`[ECONOMY] Approved BB #${req.bbId} for ${req.days} days`);
       }
       pendingRequests.splice(idx, 1);

@@ -621,3 +621,32 @@ body {
   padding: 40px 0;
   font-style: italic;
 }
+
+/* Game Notifications */
+.game-notification {
+  position: fixed;
+  bottom: 150px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 15px 30px;
+  background: rgba(20, 241, 149, 0.9);
+  color: #000;
+  border: 2px solid #14F195;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 16px;
+  z-index: 9999;
+  animation: slideUp 0.3s ease-out, fadeOut 0.5s ease-in 3.5s forwards;
+  pointer-events: none;
+  box-shadow: 0 0 20px rgba(0,0,0,0.5);
+}
+
+@keyframes slideUp {
+  from { bottom: -50px; opacity: 0; }
+  to { bottom: 150px; opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
