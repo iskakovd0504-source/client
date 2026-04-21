@@ -189,6 +189,7 @@ io.on('connection', (socket) => {
     io.emit('playersUpdate', players);
     socket.emit('cargoState', droppedCargos);
     socket.emit('billboardState', billboards);
+    console.log(`[DEBUG] Sent ${billboards.length} billboards to player ${socket.id}`);
     
     if (finalNickname === 'Admin') {
         socket.emit('pendingState', pendingRequests);
