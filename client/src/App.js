@@ -443,22 +443,24 @@ const InstancedBillboards = ({ billboards }) => {
     const stdBoards = useRef();
     const lowPoles = useRef();
     const lowBoards = useRef();
+    const { camera } = useThree();
     
     // Состояние видимости текста для каждого билборда
     const [visibleMap, setVisibleMap] = useState({});
 
-    useFrame((state) => {
-        const camPos = state.camera.position;
-        const newMap = {};
-        for (const b of billboards) {
-            const d = Math.hypot(camPos.x - b.x, camPos.z - b.z);
-            if (d < 800) newMap[b.id] = true;
-        }
-        // Чтобы не дергать стейт каждый кадр, проверяем изменения
-        if (Object.keys(newMap).length !== Object.keys(visibleMap).length) {
+    // Оптимизированный чекер LOD: проверяем дистанцию 5 раз в секунду, а не 60
+    useEffect(() => {
+        const interval = setInterval(() => {
+            const camPos = camera.position;
+            const newMap = {};
+            for (const b of billboards) {
+                const d = Math.hypot(camPos.x - b.x, camPos.z - b.z);
+                if (d < 800) newMap[b.id] = true;
+            }
             setVisibleMap(newMap);
-        }
-    });
+        }, 200);
+        return () => clearInterval(interval);
+    }, [billboards, camera]);
 
     useEffect(() => {
         if (!billboards.length) return;

@@ -52,25 +52,34 @@ let billboards = globalDB.billboards;
 let pendingRequests = []; 
 let pendingPremiumRequests = []; // Новые заявки на GENESIS статус
 
-if (billboards.length === 0) {
-    const neonColors = ['#eab308', '#14F195', '#ff00ff', '#00ffff', '#ff4500'];
-    for (let i = 0; i < 100; i++) {
-        let x = (Math.random() - 0.5) * 7600; 
-        let z = (Math.random() * 3800) - 3400; 
-        const type = i % 3;
+if (billboards.length < 101) { // Если меньше 101 или пустая, пересоздаем до 270
+    billboards = [];
+    const neonColors = ['#eab308', '#14F195', '#ff00ff', '#00ffff', '#ff4500', '#00bbff'];
+    for (let i = 0; i < 270; i++) {
+        let x = (Math.random() - 0.5) * 7800; // Почти вся ширина карты
+        let z = (Math.random() * 4500) - 3800; // Распределяем по всей глубине от старта до Алатау
+        const type = i % 3 === 0 ? (i % 6 === 0 ? 1 : 0) : 2; // Более редкие Мега, частые Лоу
+        
+        const priceTemplate = {
+            1: { 1: 2000, 7: 10000, 30: 30000 }, // MEGA
+            0: { 1: 1000, 7: 5000, 30: 15000 },  // STANDARD
+            2: { 1: 500, 7: 2500, 30: 7000 }      // LOW
+        };
+
         billboards.push({
             id: i, x, z, rotY: Math.random() * Math.PI * 2,
             text: `AD SPACE #${i}`, color: neonColors[i % neonColors.length],
             type, expiresAt: null,
-            prices: { 1: type === 1 ? 2000 : (type === 2 ? 500 : 1000), 7: type === 1 ? 10000 : 5000, 30: type === 1 ? 30000 : 15000 }
+            prices: priceTemplate[type]
         });
     }
+    saveDB();
 }
 
-const saveDB = () => {
+function saveDB() {
     globalDB.billboards = billboards;
     fs.writeFileSync(DB_FILE, JSON.stringify(globalDB, null, 2));
-};
+}
 
 const CARGO_TYPES = ['Solana Validator Node', 'Saga Mobile (Batch 2)', 'Dedicated RPC Cluster', 'Genesis Block Snapshot', 'Jito-MEV Accelerator'];
 
