@@ -25,22 +25,22 @@ if (fs.existsSync(DB_FILE)) {
   } catch(e) {}
 }
 
-// Если билбордов еще нет в базе, инициализируем 270 слотов
+// Если билбордов еще нет в базе, инициализируем 100 слотов
 if (billboards.length === 0) {
     const neonColors = ['#eab308', '#14F195', '#ff00ff', '#00ffff', '#ff4500'];
     
-    for (let i = 0; i < 270; i++) {
+    for (let i = 0; i < 100; i++) {
         let x, z;
         if (i === 0) {
             x = 40;
             z = 150;
         } else {
-            x = (Math.random() - 0.5) * 9000;
-            z = (Math.random() - 0.9) * 6500;
+            // Равномерное распределение внутри MAP_LIMIT (X: +/- 3800, Z: -3400 to +400)
+            x = (Math.random() - 0.5) * 7600; 
+            z = (Math.random() * 3800) - 3400; 
         }
 
         const type = i % 3;
-        // Предварительно прописываем цены для каждого срока
         const prices = {
             1: type === 1 ? 2000 : (type === 2 ? 500 : 1000),
             7: type === 1 ? 10000 : (type === 2 ? 2500 : 5000),
@@ -55,7 +55,7 @@ if (billboards.length === 0) {
             text: `AD SPACE #${i}`,
             color: neonColors[i % neonColors.length],
             type,
-            prices, // Цены теперь ТУТ
+            prices,
             expiresAt: null
         });
     }
@@ -235,6 +235,7 @@ io.on('connection', (socket) => {
 
   socket.on('hit', (targetId) => {
     const target = players[targetId];
+    if (target && target.nickname === 'Admin') return; // Серверная защита
     if (target && target.cargo && target.cargo.length > 0) {
       console.log(`Player ${socket.id} hit ${targetId}, dropping cargo!`);
       const droppedItem = target.cargo.pop(); // Выбиваем 1 груз из стопки!

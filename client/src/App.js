@@ -48,17 +48,18 @@ const MOCK_ADS = [
 let LEVEL_BILLBOARDS = []; 
 
 
-const VoxelCar = ({ position, rotation, isPremium }) => {
-  const mainColor = isPremium ? '#eab308' : '#ffffff';
-  const detailColor = isPremium ? '#000000' : '#444444';
+const VoxelCar = ({ position, rotation, isPremium, isAdmin }) => {
+  const mainColor = isAdmin ? '#111111' : (isPremium ? '#eab308' : '#ffffff');
+  const detailColor = isAdmin ? '#00ffff' : (isPremium ? '#000000' : '#444444');
+  const windowColor = isAdmin ? '#00ffff' : '#88ccff';
   
   return (
     <group position={position} rotation={rotation}>
       <Box args={[2.2, 1, 4.5]} position={[0, 0.8, 0]} castShadow>
-        <meshStandardMaterial color={mainColor} />
+        <meshStandardMaterial color={mainColor} emissive={isAdmin ? '#00ffff' : '#000'} emissiveIntensity={isAdmin ? 0.2 : 0} />
       </Box>
       <Box args={[1.8, 0.9, 2]} position={[0, 1.7, -0.5]} castShadow>
-        <meshStandardMaterial color="#88ccff" />
+        <meshStandardMaterial color={windowColor} transparent={isAdmin} opacity={isAdmin ? 0.8 : 1} />
       </Box>
       <Box args={[2.5, 0.8, 0.8]} position={[0, 0.4, -1.3]} castShadow>
         <meshStandardMaterial color={detailColor} />
@@ -67,10 +68,10 @@ const VoxelCar = ({ position, rotation, isPremium }) => {
         <meshStandardMaterial color={detailColor} />
       </Box>
       <Box args={[1.8, 0.2, 0.2]} position={[0, 1.0, -2.3]}>
-        <meshBasicMaterial color="#ffffcc" />
+        <meshBasicMaterial color={isAdmin ? "#00ffff" : "#ffffcc"} />
       </Box>
       <Box args={[1.8, 0.2, 0.2]} position={[0, 1.0, 2.3]}>
-        <meshBasicMaterial color="#ff0000" />
+        <meshBasicMaterial color={isAdmin ? "#ff00ff" : "#ff0000"} />
       </Box>
     </group>
   );
@@ -84,13 +85,13 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards, a
     targetVelocity: 0,
     yaw: 0,
     targetYaw: 0,
-    isRestocking: false, // Флаг для предотвращения спама при получении груза
+    isRestocking: false,
   });
   const carMeshRef = useRef();
 
   const [keys, setKeys] = useState({});
-  const lasersRef = useRef([]); // Переводим лазеры на ref для скорости
-  const [laserCounter, setLaserCounter] = useState(0); // Только для триггера рендера новых лазеров (если нужно, но лучше без него)
+  const lasersRef = useRef([]);
+  const [laserCounter, setLaserCounter] = useState(0);
 
   useEffect(() => {
     const handleShoot = () => {
@@ -104,23 +105,18 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards, a
         velocity: direction.multiplyScalar(2500), 
         yaw: yaw, 
         life: 30,
-        meshRef: React.createRef() // Ссылка для прямого управления мешем
+        meshRef: React.createRef()
       };
       lasersRef.current.push(newLaser);
-      setLaserCounter(c => c + 1); // Форсируем создание нового меша в React один раз
+      setLaserCounter(c => c + 1);
     };
 
     const handleKeyDown = (e) => {
       setKeys((k) => ({ ...k, [e.code]: true }));
-      if (e.code === 'Space') {
-         handleShoot();
-      }
+      if (e.code === 'Space') handleShoot();
     };
     const handleKeyUp = (e) => setKeys((k) => ({ ...k, [e.code]: false }));
-
-    const handleMouseShoot = (e) => {
-      if (e.button === 0) handleShoot();
-    };
+    const handleMouseShoot = (e) => { if (e.button === 0) handleShoot(); };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
@@ -135,21 +131,19 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards, a
 
   useFrame((state, delta) => {
     const r = ref.current;
+    const isLocalAdmin = myPlayerState?.nickname === 'Admin';
+    const m = isLocalAdmin ? 4 : 1;
 
-    // Сверхмедленная езда (в 4 раза медленнее)
-    if (keys['KeyW']) r.targetVelocity += 0.0125; 
-    if (keys['KeyS']) r.targetVelocity -= 0.025; 
+    if (keys['KeyW']) r.targetVelocity += 0.0125 * m; 
+    if (keys['KeyS']) r.targetVelocity -= 0.025 * m; 
     if (!keys['KeyW'] && !keys['KeyS']) r.targetVelocity *= 0.96; 
     if (keys['Space']) r.targetVelocity *= 0.98;
 
-    // Максимальная скорость 0.55
-    r.targetVelocity = Math.max(-0.2, Math.min(0.55, r.targetVelocity));
+    r.targetVelocity = Math.max(-0.2 * m, Math.min(0.55 * m, r.targetVelocity));
     r.velocity += (r.targetVelocity - r.velocity) * 0.1; 
 
-    // Логика руля настроена под сверхнизкие скорости
     const isMovingForward = r.velocity > 0.01;
-    const isMovingBackward = r.velocity < -0.01;
-    const isMoving = isMovingForward || isMovingBackward;
+    const isMoving = Math.abs(r.velocity) > 0.01;
     
     if (isMoving) {
        const turnRate = 0.05 * (Math.abs(r.velocity) / 0.375); 
@@ -159,39 +153,23 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards, a
     }
 
     r.yaw += (r.targetYaw - r.yaw) * 0.3;
-
     const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, r.yaw, 0, 'YXZ'));
     const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
-    
     const moveStep = r.velocity * (delta * 60);
     const nextPos = r.position.clone().add(direction.clone().multiplyScalar(moveStep));
 
-    // Проверка коллизий только с биллбордами
     let collision = false;
-    for (const bb of (billboards || [])) {
-        if (Math.abs(nextPos.x - bb.x) > 100 || Math.abs(nextPos.z - bb.z) > 100) continue;
-        if (Math.hypot(nextPos.x - bb.x, nextPos.z - bb.z) < 10) { 
+    for (const pt of DELIVERY_POINTS) {
+        if (Math.abs(nextPos.x - pt.x) > 400 || Math.abs(nextPos.z - pt.z) > 400) continue;
+        const isRotated = Math.abs(pt.rot) > 0.1;
+        const hw = isRotated ? 100 : 200;
+        const hd = isRotated ? 200 : 100;
+        if (Math.abs(nextPos.x - pt.x) < (hw + 5) && Math.abs(nextPos.z - pt.z) < (hd + 5)) {
             collision = true;
             break;
         }
     }
 
-    if (!collision) {
-        for (const pt of DELIVERY_POINTS) {
-            if (Math.abs(nextPos.x - pt.x) > 400 || Math.abs(nextPos.z - pt.z) > 400) continue;
-            
-            const isRotated = Math.abs(pt.rot) > 0.1;
-            const hw = isRotated ? 100 : 200; // Half-width ( world X )
-            const hd = isRotated ? 200 : 100; // Half-depth ( world Z )
-            
-            if (Math.abs(nextPos.x - pt.x) < (hw + 5) && Math.abs(nextPos.z - pt.z) < (hd + 5)) {
-                collision = true;
-                break;
-            }
-        }
-    }
-
-    // Жесткая авария - остановка и легкий отскок
     if (collision) {
         r.velocity = 0;
         r.targetVelocity = 0;
@@ -201,13 +179,10 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards, a
     }
 
     r.position.y = 0; 
-
-    // Забор ограничитель
     if (r.position.x > MAP_LIMIT - 10) r.position.x = MAP_LIMIT - 10;
     if (r.position.x < -MAP_LIMIT + 10) r.position.x = -MAP_LIMIT + 10;
     if (r.position.z < -MAP_LIMIT + 10) r.position.z = -MAP_LIMIT + 10;
     
-    // СИНХРОНИЗАЦИЯ: Обновляем локальное состояние в ref, чтобы UI (HUD) видел наши координаты
     if (players && players[socket.id]) {
       players[socket.id].position = [r.position.x, r.position.y, r.position.z];
       players[socket.id].rotation = [0, r.yaw, 0];
@@ -227,87 +202,63 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards, a
       });
     }
 
-    // Лазеры: Прямое управление через Mutable Ref (без ре-рендера React!)
     const activeLasers = [];
     for (const l of lasersRef.current) {
          let hitInfo = false;
-         
-         // Оптимизированная коллизия лазера: только билборды
-         for (const bb of (billboards || [])) {
-            if (Math.abs(l.position.x - bb.x) > 100 || Math.abs(l.position.z - bb.z) > 100) continue;
-            if (Math.hypot(l.position.x - bb.x, l.position.z - bb.z) < 20) {
-                hitInfo = true; break;
+         // Лазеры больше не врезаются в билборды
+         for (const pid in players) {
+            if (pid === socket.id) continue;
+            const target = players[pid];
+            if (!target.cargo || !target.position) continue; 
+            const dist = l.position.distanceTo(new THREE.Vector3(target.position[0], target.position[1], target.position[2]));
+            if (dist < 25.0) { 
+               if (target.nickname === 'Admin') continue;
+               socket.emit('hit', pid); 
+               hitInfo = true;
+               break;
             }
-         }
-
-         if (!hitInfo) {
-             for (const pid in players) {
-                if (pid === socket.id) continue;
-                const target = players[pid];
-                if (!target.cargo || !target.position) continue; 
-                
-                const dist = l.position.distanceTo(new THREE.Vector3(target.position[0], target.position[1], target.position[2]));
-                if (dist < 25.0) { 
-                   socket.emit('hit', pid); 
-                   hitInfo = true;
-                   break;
-                }
-             }
          }
 
          if (!hitInfo && l.life > 0) {
             l.position.add(l.velocity.clone().multiplyScalar(delta));
             l.life -= 1;
-            // Обновляем позицию меша напрямую
-            if (l.meshRef.current) {
-                l.meshRef.current.position.copy(l.position);
-            }
+            if (l.meshRef.current) l.meshRef.current.position.copy(l.position);
             activeLasers.push(l);
          }
     }
     lasersRef.current = activeLasers;
 
-    // Обновляем позицию напрямую без медленного ре-рендера React!!
     if (carMeshRef.current) {
        carMeshRef.current.position.copy(r.position);
        carMeshRef.current.rotation.y = r.yaw;
     }
 
-    // Логика подбора груза (теперь можно подбирать сколько угодно)
     if (myPlayerState) {
        for (const dc of droppedCargos) {
-          const dist = Math.hypot(r.position.x - dc.x, r.position.z - dc.z);
-          if (dist < 6) {
+          if (Math.hypot(r.position.x - dc.x, r.position.z - dc.z) < 6) {
              socket.emit('pickup', dc.id);
           }
        }
 
-       // Если нет груза и вернулся на базу Байконура пешком на колесах, выдаем один новый
        if ((!myPlayerState.cargo || myPlayerState.cargo.length === 0) && r.position.z > 0 && r.position.z < 300) {
             if (!r.isRestocking) {
                 r.isRestocking = true; 
                 const newCargo = CARGO_TYPES[Math.floor(Math.random() * CARGO_TYPES.length)];
                 const deviceId = localStorage.getItem('cmkz_device_id');
                 socket.emit('join', { nickname: myPlayerState.nickname, cargo: [newCargo], deviceId, password: adminKey });
-                
-                // Тайм-аут на склад (1 секунда между попытками взять груз)
                 setTimeout(() => { r.isRestocking = false; }, 1000);
             }
        }
     }
 
-    // Сдача груза на любой из 9 парковок
     if (myPlayerState && myPlayerState.cargo && myPlayerState.cargo.length > 0) {
         let onDeliveryPad = false;
         for (const pt of DELIVERY_POINTS) {
-            // Вычисляем центр площадки с учетом поворота
             const padX = pt.x + 250 * Math.sin(pt.rot);
             const padZ = pt.z + 250 * Math.cos(pt.rot);
-            
             const isRotated = Math.abs(pt.rot) > 0.1;
             const rangeX = isRotated ? 75 : 100;
             const rangeZ = isRotated ? 100 : 75;
-
             if (Math.abs(r.position.x - padX) < rangeX && Math.abs(r.position.z - padZ) < rangeZ) {
                 onDeliveryPad = true;
                 break;
@@ -315,14 +266,11 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards, a
         }
        if (onDeliveryPad) {
           socket.emit('deliver');
-
-          // Телепорт обратно на Байконур для следующего рейса
           r.position.set((Math.random() - 0.5) * 40, 0, 200);
           r.yaw = 0;
           r.velocity = 0;
           r.targetVelocity = 0;
 
-          // Мгновенная выдача нового груза (с защитой от спама)
           if (!r.isRestocking) {
               r.isRestocking = true;
               const newCargo = CARGO_TYPES[Math.floor(Math.random() * CARGO_TYPES.length)];
@@ -337,7 +285,7 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards, a
   return (
     <>
       <group ref={carMeshRef} position={[0, 0, 200]}>
-        <VoxelCar position={[0, 0, 0]} rotation={[0, 0, 0]} isPremium={myPlayerState?.isPremium} />
+        <VoxelCar position={[0, 0, 0]} rotation={[0, 0, 0]} isPremium={myPlayerState?.isPremium} isAdmin={myPlayerState?.nickname === 'Admin'} />
       </group>
       {lasersRef.current.map(l => (
         <mesh key={l.id} ref={l.meshRef} position={l.position}>
@@ -511,9 +459,9 @@ const OtherPlayers = ({ players, playersRef }) => {
             ref={el => meshRefs.current[p.id] = el}
             position={p.position}
           >
-            <VoxelCar position={[0,0,0]} rotation={[0,0,0]} isPremium={p.isPremium} />
-            <Text position={[0, 4, 0]} fontSize={2} color="white" anchorX="center" anchorY="middle">
-              {typeof p.nickname === 'string' ? p.nickname : (p.nickname && p.nickname.nickname ? p.nickname.nickname : 'Pilot')} {p.cargo && p.cargo.length > 0 ? `📦x${p.cargo.length}` : ''}
+            <VoxelCar position={[0,0,0]} rotation={[0,0,0]} isPremium={p.isPremium} isAdmin={p.nickname === 'Admin'} />
+            <Text position={[0, 4, 0]} fontSize={2} color={p.nickname === 'Admin' ? "#00ffff" : "white"} anchorX="center" anchorY="middle" fontStyle={p.nickname === 'Admin' ? 'italic' : 'normal'}>
+              {p.nickname === 'Admin' ? '⚡ Administrator' : (typeof p.nickname === 'string' ? p.nickname : (p.nickname && p.nickname.nickname ? p.nickname.nickname : 'Pilot'))} {p.cargo && p.cargo.length > 0 ? `📦x${p.cargo.length}` : ''}
             </Text>
           </group>
         );
@@ -750,8 +698,6 @@ function App() {
       }
 
       socket.emit('join', { nickname, deviceId, password: adminKey });
-      // We don't set inGame(true) setInGame(true) here immediately, 
-      // instead we wait for playerUpdate or success, or handleAuthRequired
       setInGame(true); 
     }
   };
@@ -768,9 +714,18 @@ function App() {
             <div className="modal-overlay">
                <div className="rent-modal">
                   <h2>✅ PILOT REGISTERED</h2>
-                  <p>Save your Access ID to login from any device:</p>
-                  <div className="req-text-preview" style={{ fontSize: '18px', color: '#eab308' }}>{accessIdToSave}</div>
-                  <button className="confirm" onClick={() => setShowRegModal(false)}>I HAVE SAVED IT</button>
+                  <p>For your security, your Access ID is hidden. Copy and save it to login from other devices:</p>
+                  <button 
+                    className="confirm" 
+                    style={{ marginBottom: '10px' }}
+                    onClick={() => {
+                        navigator.clipboard.writeText(accessIdToSave);
+                        showNotification('Access ID copied to clipboard!', 'success');
+                    }}
+                  >
+                    📋 COPY ACCESS ID
+                  </button>
+                  <button className="cancel" onClick={() => setShowRegModal(false)}>I HAVE SAVED IT</button>
                </div>
             </div>
           )}
@@ -994,7 +949,18 @@ function App() {
           )}
 
           <div className="hud-top-left interactive">
-            <div className="hud-panel">PILOT ID: <span style={{ fontSize: '10px', color: '#eab308' }}>{localStorage.getItem('cmkz_device_id')}</span></div>
+            <div className="hud-panel">
+               <button 
+                  className="interactive" 
+                  style={{ background: 'rgba(234, 179, 8, 0.1)', border: '1px solid #eab308', color: '#eab308', fontSize: '9px', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: '900' }}
+                  onClick={() => {
+                      navigator.clipboard.writeText(localStorage.getItem('cmkz_device_id'));
+                      showNotification('Access ID copied to clipboard!', 'success');
+                  }}
+               >
+                  📋 COPY ACCESS ID
+               </button>
+            </div>
             <div className="hud-panel">CARGO: <span>{me?.cargo && me.cargo.length > 0 ? `${me.cargo.length}x CRATES` : 'NONE'}</span></div>
             <div className="hud-panel">BAL: <span>{Math.floor((me?.points || 0) / 15)}</span> $CMKZ</div>
           </div>
