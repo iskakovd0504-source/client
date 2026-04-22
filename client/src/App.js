@@ -1197,7 +1197,7 @@ function App() {
           <div className="premium-card">
             <div className="premium-tag">x2 Farm Boost</div>
             <h3>GENESIS Cybertruck</h3>
-            <p>[Cost: 2 500 KZT] Stand out in Alatau City. Double your $CMKZ airdrop pts.</p>
+            <p>[Cost: 2 500 KZT] Stand out in Alatau City. 2x Speed boost & Double your $CMKZ points.</p>
             
             {me?.isPremium ? (
                  <div style={{ marginTop: '15px', padding: '10px', background: 'rgba(20, 241, 149, 0.1)', border: '1px solid #14F195', borderRadius: '8px', color: '#14F195', fontWeight: '900', fontSize: '11px', textAlign: 'center' }}>
