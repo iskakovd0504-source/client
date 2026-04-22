@@ -50,6 +50,7 @@ try {
 
 let billboards = globalDB.billboards;
 let pendingRequests = []; 
+let pendingPremiumRequests = []; // Новые заявки на GENESIS статус
 
 if (billboards.length === 0) {
     const neonColors = ['#eab308', '#14F195', '#ff00ff', '#00ffff', '#ff4500'];
@@ -162,7 +163,10 @@ io.on('connection', (socket) => {
     io.emit('playersUpdate', players);
     socket.emit('cargoState', droppedCargos);
     socket.emit('billboardState', billboards);
-    if (finalNickname === 'Admin') socket.emit('pendingState', pendingRequests);
+    if (finalNickname === 'Admin') {
+        socket.emit('pendingState', pendingRequests);
+        socket.emit('pendingPremiumState', pendingPremiumRequests);
+    }
   });
 
   socket.on('restockCargo', (data) => {
@@ -221,13 +225,45 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('upgradePremium', (signature) => {
+  socket.on('requestPremium', () => {
     const p = players[socket.id];
-    const normalizedNick = p?.nickname?.toLowerCase();
-    if (p && normalizedNick && globalDB.users[normalizedNick]) {
-      p.isPremium = true; globalDB.users[normalizedNick].isPremium = true;
-      saveDB(); io.emit('playersUpdate', players);
+    if (p && p.nickname) {
+        const req = {
+            requestId: Date.now() + Math.random(),
+            nickname: p.nickname,
+            price: 2500,
+            createdAt: Date.now()
+        };
+        pendingPremiumRequests.push(req);
+        io.emit('pendingPremiumState', pendingPremiumRequests);
     }
+  });
+
+  socket.on('adminApprovePremium', (requestId) => {
+    if (players[socket.id]?.nickname !== 'Admin') return;
+    const idx = pendingPremiumRequests.findIndex(r => r.requestId === requestId);
+    if (idx !== -1) {
+      const req = pendingPremiumRequests[idx];
+      const p = Object.values(players).find(pl => pl.nickname === req.nickname);
+      const normalizedNick = req.nickname.toLowerCase();
+      
+      if (globalDB.users[normalizedNick]) {
+          globalDB.users[normalizedNick].isPremium = true;
+          saveDB();
+          if (p) {
+              p.isPremium = true;
+              io.emit('playersUpdate', players);
+          }
+      }
+      pendingPremiumRequests.splice(idx, 1);
+      io.emit('pendingPremiumState', pendingPremiumRequests);
+    }
+  });
+
+  socket.on('adminRejectPremium', (requestId) => {
+    if (players[socket.id]?.nickname !== 'Admin') return;
+    pendingPremiumRequests = pendingPremiumRequests.filter(r => r.requestId !== requestId);
+    io.emit('pendingPremiumState', pendingPremiumRequests);
   });
 
   socket.on('updateBillboard', (data) => {

@@ -707,10 +707,13 @@ function App() {
 
   const [billboards, setBillboards] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
-  const [adminKey, setAdminKey] = useState(""); // Стейт для пароля админа
+  const [pendingPremiumRequests, setPendingPremiumRequests] = useState([]);
+  const [adminKey, setAdminKey] = useState(""); 
   const [nearBb, setNearBb] = useState(null);
   const [rentModal, setRentModal] = useState(false);
+  const [premiumModal, setPremiumModal] = useState(false);
   const [adminModal, setAdminModal] = useState(false);
+  const [adminTab, setAdminTab] = useState('billboards'); // 'billboards' or 'premium'
   const [rentText, setRentText] = useState("");
   const [rentColor, setRentColor] = useState("#eab308");
   const [rentDays, setRentDays] = useState(7); // Срок аренды (7 дней по умолчанию)
@@ -750,6 +753,10 @@ function App() {
     socket.on('pendingState', (data) => {
         console.log('[DEBUG] Received pending requests:', data);
         setPendingRequests(data);
+    });
+    socket.on('pendingPremiumState', (data) => {
+        console.log('[DEBUG] Received pending premium requests:', data);
+        setPendingPremiumRequests(data);
     });
     socket.on('gameNotification', (data) => {
         showNotification(data.message, data.type);
@@ -813,19 +820,6 @@ function App() {
 
   const [walletAddress, setWalletAddress] = useState(null);
 
-  const connectPhantom = async () => {
-    try {
-      if (window.solana && window.solana.isPhantom) {
-        const response = await window.solana.connect();
-        setWalletAddress(response.publicKey.toString());
-      } else {
-        alert('Phantom wallet not found! Please install it.');
-        window.open('https://phantom.app/', '_blank');
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
   const handleJoin = () => {
     if (nickname.trim()) {
@@ -1022,67 +1016,128 @@ function App() {
              </div>
           )}
 
+          {premiumModal && (
+            <div className="modal-overlay interactive">
+                <div className="rent-modal premium-theme">
+                    <div className="premium-tag" style={{ margin: '0 auto 15px', display: 'block', width: 'fit-content' }}>UPGRADE TO GENESIS</div>
+                    <h2>ACTIVATE GENESIS STATUS</h2>
+                    <div className="rent-modal-content">
+                        <p>Get exclusive gold Cybertruck styling and <b>x2 permanent multiplier</b> for all deliveries.</p>
+                        
+                        <div className="input-group" style={{ background: 'rgba(234, 179, 8, 0.05)', padding: '20px', borderRadius: '15px', border: '2px solid #eab308', marginBottom: '20px', textAlign: 'center' }}>
+                            <div style={{ color: '#eab308', fontSize: '12px', fontWeight: '900', marginBottom: '5px' }}>ONE-TIME PAYMENT:</div>
+                            <div style={{ fontSize: '28px', fontWeight: '900', color: '#fff' }}>2 500 KZT</div>
+                        </div>
+
+                        <div className="kaspi-payment">
+                            <div className="qr-box">
+                                <img src={KASPI_QR_BASE64} alt="Kaspi QR" style={{ width: "160px", height: "auto", display: "block", margin: "0 auto", borderRadius: "8px" }}/>
+                            </div>
+                            <p>Scan Kaspi QR & Send: <b>2 500 KZT</b></p>
+                            <p style={{ fontSize: '11px', opacity: 0.8, marginTop: '8px' }}>Message: <b>GEN-{me?.nickname}</b></p>
+                        </div>
+
+                        <div className="modal-actions">
+                            <button className="cancel" onClick={() => setPremiumModal(false)}>CLOSE</button>
+                            <button className="confirm" style={{ background: '#14F195', color: '#000' }} onClick={() => {
+                                socket.emit('requestPremium');
+                                setPremiumModal(false);
+                                showNotification('Request sent! Wait for activation.', 'success');
+                            }}>I HAVE PAID</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
           {adminModal && isAdmin && (
              <div className="modal-overlay interactive">
                 <div className="admin-modal">
-                   <div className="admin-header">
-                      <h2>ADMIN PANEL</h2>
-                      <button className="close-btn" onClick={() => setAdminModal(false)}>✕</button>
-                   </div>
-                   
-                   <div className="pending-list">
-                      <h3>PENDING REQUESTS ({pendingRequests.length})</h3>
-                      {pendingRequests.length === 0 ? (
-                         <div className="empty-state">No pending requests</div>
-                      ) : (
-                         pendingRequests.map(req => (
-                            <div key={req.requestId} className="pending-item">
-                                <div className="req-header" style={{ alignItems: 'center' }}>
-                                  <span className="req-nick">User: <b>{req.requesterNick}</b></span>
-                                  <span className="req-time" style={{ fontSize: '12px', color: '#eab308', fontWeight: 'bold' }}>
-                                     {req.createdAt ? new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '??:??'}
-                                  </span>
-                                  <span className="req-id">AD-{req.bbId}</span>
-                                </div>
-                                <div className="req-body">
-                                   <div className="req-economy-info" style={{ background: 'rgba(255,255,255,0.05)', padding: '10px', borderRadius: '5px', marginBottom: '10px', fontSize: '12px' }}>
-                                      <div>TERM: <b style={{ color: '#eab308' }}>{req.days} DAYS</b></div>
-                                      <div>EXPECTED: <b style={{ color: '#14F195' }}>{req.price} KZT</b></div>
-                                   </div>
-                                   <div className="req-compare">
-                                      <div className="compare-box">
-                                         <span>CURRENT:</span>
-                                         <p>{(billboards || []).find(b => Number(b.id) === Number(req.bbId))?.text || "???"}</p>
+                    <div className="admin-header">
+                       <h2>ADMIN PANEL</h2>
+                       <button className="close-btn" onClick={() => setAdminModal(false)}>✕</button>
+                    </div>
+
+                    <div className="admin-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                        <button 
+                            className={`admin-tab-btn ${adminTab === 'billboards' ? 'active' : ''}`}
+                            onClick={() => setAdminTab('billboards')}
+                            style={{ 
+                                flex: 1, padding: '10px', background: adminTab === 'billboards' ? '#eab308' : '#1a202c',
+                                color: adminTab === 'billboards' ? '#000' : '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold'
+                            }}
+                        >
+                            AD BOARDS ({pendingRequests.length})
+                        </button>
+                        <button 
+                            className={`admin-tab-btn ${adminTab === 'premium' ? 'active' : ''}`}
+                            onClick={() => setAdminTab('premium')}
+                            style={{ 
+                                flex: 1, padding: '10px', background: adminTab === 'premium' ? '#14F195' : '#1a202c',
+                                color: adminTab === 'premium' ? '#000' : '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold'
+                            }}
+                        >
+                            PREMIUMS ({pendingPremiumRequests.length})
+                        </button>
+                    </div>
+                    
+                    <div className="pending-list" style={{ overflowY: 'auto', maxHeight: '400px' }}>
+                       {adminTab === 'billboards' ? (
+                          <>
+                            {pendingRequests.length === 0 ? (
+                               <div className="empty-state">No pending ad requests</div>
+                            ) : (
+                               pendingRequests.map(req => (
+                                  <div key={req.requestId} className="pending-item" style={{ background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '10px', marginBottom: '10px' }}>
+                                      <div className="req-header" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span className="req-nick">User: <b>{req.requesterNick}</b></span>
+                                        <span className="req-time" style={{ fontSize: '11px', opacity: 0.6 }}>{req.createdAt ? new Date(req.createdAt).toLocaleTimeString() : ''}</span>
                                       </div>
-                                      <div className="compare-arrow">➜</div>
-                                      <div className="compare-box">
-                                         <span>PROPOSED:</span>
-                                         <p style={{ color: req.color }}>{req.text}</p>
+                                      <div className="req-body" style={{ margin: '10px 0' }}>
+                                         <div style={{ color: req.color, fontWeight: 'bold' }}>"{req.text}"</div>
+                                         <div style={{ fontSize: '11px' }}>ID: {req.bbId} | {req.days} days | {req.price} KZT</div>
                                       </div>
-                                   </div>
-                                   <div className="req-text-preview" style={{ 
-                                       color: req.color, 
-                                       textShadow: `0 0 15px ${req.color}` 
-                                   }}>
-                                      {req.text}
-                                   </div>
-                                </div>
-                                <div className="req-actions">
-                                   <button className="reject" onClick={() => socket.emit('adminReject', req.requestId)}>REJECT</button>
-                                   <button className="approve" onClick={() => socket.emit('adminApprove', req.requestId)}>APPROVE</button>
-                                </div>
-                            </div>
-                         ))
-                      )}
-                   </div>
-                </div>
-             </div>
-          )}
+                                      <div className="req-actions" style={{ display: 'flex', gap: '10px' }}>
+                                         <button className="reject" onClick={() => socket.emit('adminReject', req.requestId)} style={{ flex: 1, background: '#ff4444', border: 'none', borderRadius: '4px', padding: '5px' }}>REJECT</button>
+                                         <button className="approve" onClick={() => socket.emit('adminApprove', req.requestId)} style={{ flex: 1, background: '#eab308', color: '#000', border: 'none', borderRadius: '4px', padding: '5px' }}>APPROVE</button>
+                                      </div>
+                                  </div>
+                               ))
+                            )}
+                          </>
+                       ) : (
+                          <>
+                            {pendingPremiumRequests.length === 0 ? (
+                               <div className="empty-state">No pending premium requests</div>
+                            ) : (
+                               pendingPremiumRequests.map(req => (
+                                  <div key={req.requestId} className="pending-item" style={{ background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '10px', marginBottom: '10px' }}>
+                                      <div className="req-header" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span className="req-nick">Pilot: <b>{req.nickname}</b></span>
+                                        <span className="req-time" style={{ fontSize: '11px', opacity: 0.6 }}>{req.createdAt ? new Date(req.createdAt).toLocaleTimeString() : ''}</span>
+                                      </div>
+                                      <div className="req-body" style={{ margin: '10px 0', textAlign: 'center' }}>
+                                         <div style={{ color: '#14F195', fontWeight: '900' }}>GENESIS ACTIVATION</div>
+                                         <div style={{ fontSize: '12px' }}>PRICE: {req.price} KZT</div>
+                                      </div>
+                                      <div className="req-actions" style={{ display: 'flex', gap: '10px' }}>
+                                         <button className="reject" onClick={() => socket.emit('adminRejectPremium', req.requestId)} style={{ flex: 1, background: '#ff4444', border: 'none', borderRadius: '4px', padding: '5px' }}>REJECT</button>
+                                         <button className="approve" onClick={() => socket.emit('adminApprovePremium', req.requestId)} style={{ flex: 1, background: '#14F195', color: '#000', border: 'none', borderRadius: '4px', padding: '5px' }}>APPROVE</button>
+                                      </div>
+                                  </div>
+                               ))
+                            )}
+                          </>
+                       )}
+                    </div>
+                 </div>
+              </div>
+           )}
 
           {isAdmin && (
              <button className="admin-gear-btn interactive" onClick={() => setAdminModal(true)}>
                 ⚙️
-                {pendingRequests.length > 0 && <span className="notification-badge">{pendingRequests.length}</span>}
+                {(pendingRequests.length + pendingPremiumRequests.length) > 0 && <span className="notification-badge">{pendingRequests.length + pendingPremiumRequests.length}</span>}
              </button>
           )}
 
@@ -1139,54 +1194,18 @@ function App() {
           <div className="premium-card">
             <div className="premium-tag">x2 Farm Boost</div>
             <h3>GENESIS Cybertruck</h3>
-            <p>[Cost: 0.25 SOL] Stand out in Alatau City. Double your $CMKZ airdrop pts.</p>
+            <p>[Cost: 2 500 KZT] Stand out in Alatau City. Double your $CMKZ airdrop pts.</p>
             
             {me?.isPremium ? (
                  <div style={{ marginTop: '15px', padding: '10px', background: 'rgba(20, 241, 149, 0.1)', border: '1px solid #14F195', borderRadius: '8px', color: '#14F195', fontWeight: '900', fontSize: '11px', textAlign: 'center' }}>
                    ✔️ GENESIS STATUS ACTIVE
                  </div>
-            ) : !walletAddress ? (
-                 <button 
-                    style={{ marginTop: '10px', backgroundColor: '#eab308', color: '#000' }}
-                    onClick={connectPhantom}
-                 >
-                   CONNECT PHANTOM
-                 </button>
             ) : (
                  <button 
-                    style={{ backgroundColor: '#14F195', color: '#000', marginTop: '10px' }}
-                    onClick={async () => {
-                       try {
-                          const solanaWeb3 = window.solanaWeb3;
-                          if (!solanaWeb3) throw new Error('Solana Web3 not loaded');
-
-                          // Connect to devnet via CDN's Connection
-                          const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('devnet'));
-
-                          const adminPubKey = new solanaWeb3.PublicKey('11111111111111111111111111111111'); 
-                          const transaction = new solanaWeb3.Transaction().add(
-                              solanaWeb3.SystemProgram.transfer({
-                                  fromPubkey: new solanaWeb3.PublicKey(walletAddress),
-                                  toPubkey: adminPubKey,
-                                  lamports: 0.25 * solanaWeb3.LAMPORTS_PER_SOL
-                              })
-                          );
-                          
-                          const { blockhash } = await connection.getLatestBlockhash();
-                          transaction.recentBlockhash = blockhash;
-                          transaction.feePayer = new solanaWeb3.PublicKey(walletAddress);
-
-                          const { signature } = await window.solana.signAndSendTransaction(transaction);
-                          
-                          socket.emit('upgradePremium', signature);
-                          alert('Transaction sent! You are now premium!');
-                       } catch (e) {
-                          alert('Payment failed or cancelled.');
-                          console.error(e);
-                       }
-                    }}
+                    style={{ marginTop: '10px', backgroundColor: '#eab308', color: '#000' }}
+                    onClick={() => setPremiumModal(true)}
                  >
-                   ACTIVATE GENESIS
+                   ACTIVATE BY KASPI
                  </button>
             )}
           </div>
