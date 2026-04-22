@@ -3,124 +3,104 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const crypto = require('crypto');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
-const fs = require('fs');
 const players = {};
 let droppedCargos = []; // Array of { id, x, z, type }
 
 const DB_FILE = './database.json';
-let globalDB = {};
-let billboards = []; // Array of { id, text, color, rotY, x, z }
-let pendingRequests = []; // Очередь модерации всегда пуста при старте
 
-// Инициализация базы данных (persistence)
-if (fs.existsSync(DB_FILE)) {
-  try {
-     globalDB = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
-     if (globalDB.billboards) billboards = globalDB.billboards;
-  } catch(e) {}
+// Загрузка / Инициализация БД
+let globalDB = { billboards: [], users: {} };
+try {
+  if (fs.existsSync(DB_FILE)) {
+      const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
+      if (Array.isArray(data)) {
+          globalDB.billboards = data;
+      } else {
+          globalDB = data;
+      }
+      if (!globalDB.users) globalDB.users = {};
+      if (!globalDB.billboards) globalDB.billboards = [];
+
+      // МИГРАЦИЯ
+      Object.keys(globalDB).forEach(key => {
+          if (key !== 'users' && key !== 'billboards' && typeof globalDB[key] === 'object' && globalDB[key].nickname) {
+              const legacyUser = globalDB[key];
+              const nick = legacyUser.nickname;
+              if (!globalDB.users[nick]) {
+                  globalDB.users[nick] = {
+                      points: legacyUser.points || 0,
+                      isPremium: legacyUser.isPremium || false,
+                      deviceId: key,
+                      hashedSecret: crypto.createHash('sha256').update(key).digest('hex')
+                  };
+              }
+              delete globalDB[key];
+          }
+      });
+  }
+} catch (e) {
+  console.error("Error loading DB:", e);
 }
 
-// Если билбордов еще нет в базе, инициализируем 100 слотов
+let billboards = globalDB.billboards;
+let pendingRequests = []; 
+
 if (billboards.length === 0) {
     const neonColors = ['#eab308', '#14F195', '#ff00ff', '#00ffff', '#ff4500'];
-    
     for (let i = 0; i < 100; i++) {
-        let x, z;
-        if (i === 0) {
-            x = 40;
-            z = 150;
-        } else {
-            // Равномерное распределение внутри MAP_LIMIT (X: +/- 3800, Z: -3400 to +400)
-            x = (Math.random() - 0.5) * 7600; 
-            z = (Math.random() * 3800) - 3400; 
-        }
-
+        let x = (Math.random() - 0.5) * 7600; 
+        let z = (Math.random() * 3800) - 3400; 
         const type = i % 3;
-        const prices = {
-            1: type === 1 ? 2000 : (type === 2 ? 500 : 1000),
-            7: type === 1 ? 10000 : (type === 2 ? 2500 : 5000),
-            30: type === 1 ? 30000 : (type === 2 ? 7000 : 15000)
-        };
-        
         billboards.push({
-            id: i,
-            x,
-            z,
-            rotY: Math.random() * Math.PI * 2,
-            text: `AD SPACE #${i}`,
-            color: neonColors[i % neonColors.length],
-            type,
-            prices,
-            expiresAt: null
+            id: i, x, z, rotY: Math.random() * Math.PI * 2,
+            text: `AD SPACE #${i}`, color: neonColors[i % neonColors.length],
+            type, expiresAt: null,
+            prices: { 1: type === 1 ? 2000 : (type === 2 ? 500 : 1000), 7: type === 1 ? 10000 : 5000, 30: type === 1 ? 30000 : 15000 }
         });
     }
 }
 
 const saveDB = () => {
     globalDB.billboards = billboards;
-    fs.writeFileSync(DB_FILE, JSON.stringify(globalDB));
+    fs.writeFileSync(DB_FILE, JSON.stringify(globalDB, null, 2));
 };
 
-const CARGO_TYPES = [
-  'Solana Validator Node',
-  'Saga Mobile (Batch 2)',
-  'Dedicated RPC Cluster',
-  'Genesis Block Snapshot',
-  'Jito-MEV Accelerator'
-];
+const CARGO_TYPES = ['Solana Validator Node', 'Saga Mobile (Batch 2)', 'Dedicated RPC Cluster', 'Genesis Block Snapshot', 'Jito-MEV Accelerator'];
 
-// Initialize 4 autopilot bots
+// Bots
 for (let i = 1; i <= 4; i++) {
   const botId = 'bot_' + i;
   players[botId] = {
-    id: botId,
-    nickname: 'CargoBot ' + i,
-    position: [(Math.random() - 0.5) * 400, 0, 100 - i * 150],
-    rotation: [0, 0, 0],
-    points: 15 * i, // Some starting score
-    cargo: [CARGO_TYPES[Math.floor(Math.random() * CARGO_TYPES.length)]]
+    id: botId, nickname: 'CargoBot ' + i, position: [(Math.random() - 0.5) * 400, 0, 100 - i * 150],
+    rotation: [0, 0, 0], points: 15 * i, cargo: [CARGO_TYPES[Math.floor(Math.random() * CARGO_TYPES.length)]]
   };
 }
 
-// Bot physics/movement loop @ 20 FPS
 setInterval(() => {
   for (let i = 1; i <= 4; i++) {
     const bot = players['bot_' + i];
     if (!bot) continue;
-    
     if (bot.cargo && bot.cargo.length > 0) {
-      // Move bots linearly towards Alatau City (-3500 Z)
       bot.position[2] -= 0.55; 
-      // Add wiggle steering so they don't look completely stale
       bot.position[0] += Math.sin(Date.now() / (1000 + i*512)) * 0.4;
-      // Rotate them dynamically
-      const targetYaw = Math.PI; // Face backward (-Z)
-      bot.rotation[1] = targetYaw + Math.sin(Date.now() / (1000 + i*512)) * 0.1;
-      
+      bot.rotation[1] = Math.PI + Math.sin(Date.now() / (1000 + i*512)) * 0.1;
       io.emit('playerMoved', bot);
-      
       if (bot.position[2] < -3200) {
-        // Delivered! Reset to Baikonur
-        bot.position[2] = 200;
-        bot.position[0] = (Math.random() - 0.5) * 400;
+        bot.position[2] = 200; bot.position[0] = (Math.random() - 0.5) * 400;
         bot.cargo = [CARGO_TYPES[Math.floor(Math.random() * CARGO_TYPES.length)]];
         bot.points += 15;
         io.emit('playersUpdate', players);
       }
-    } else {
-      // Bot was killed/hit. It lost its cargo via the standard socket 'hit' event.
-      // Wait a moment then respawn and restock them at start
-      if (Math.random() < 0.05) { // Slow randomized respawn
-         bot.position[2] = 250; 
-         bot.position[0] = (Math.random() - 0.5) * 400;
+    } else if (Math.random() < 0.05) {
+         bot.position[2] = 250; bot.position[0] = (Math.random() - 0.5) * 400;
          bot.cargo = [CARGO_TYPES[Math.floor(Math.random() * CARGO_TYPES.length)]];
          io.emit('playersUpdate', players);
-      }
     }
   }
 }, 50);
@@ -130,84 +110,48 @@ const checkExpirations = () => {
     let changed = false;
     billboards.forEach(b => {
         if (b.expiresAt && now > b.expiresAt) {
-            console.log(`[ECONOMY] Billboard #${b.id} expired. Resetting.`);
-            b.text = `AD SPACE #${b.id}`;
-            b.expiresAt = null;
+            b.text = `AD SPACE #${b.id}`; b.expiresAt = null;
             const neonColors = ['#eab308', '#14F195', '#ff00ff', '#00ffff', '#ff4500'];
             b.color = neonColors[b.id % neonColors.length];
             changed = true;
         }
     });
-    if (changed) {
-        saveDB();
-        // Раньше слали всё: io.emit('billboardState', billboards);
-        // Теперь шлем только измененные (в данном случае проще переслать те, что обновились)
-        billboards.forEach(b => {
-             if (b.expiresAt === null && b.text.startsWith('AD SPACE #')) {
-                 // Это упрощенный хак для рассылки только "сброшенных"
-                 io.emit('billboardUpdate', b);
-             }
-        });
-    }
+    if (changed) { saveDB(); io.emit('billboardState', billboards); }
 };
-setInterval(checkExpirations, 60000); // Проверка раз в минуту
+setInterval(checkExpirations, 60000);
 
-const ADMIN_KEY = process.env.ADMIN_KEY; // Всегда берется ТОЛЬКО из .env
+const ADMIN_KEY = process.env.ADMIN_KEY;
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
-
-  players[socket.id] = {
-    id: socket.id,
-    nickname: 'Anon',
-    position: [0, 0, 200],
-    rotation: [0, 0, 0],
-    points: 0,
-    cargo: null,
-    isPremium: false
-  };
+  players[socket.id] = { id: socket.id, nickname: 'Anon', position: [0, 0, 200], rotation: [0, 0, 0], points: 0, cargo: null, isPremium: false };
 
   socket.on('join', (data) => {
-    let finalNickname = data.nickname;
+    const finalNickname = data.nickname;
+    const normalizedNick = finalNickname.toLowerCase();
     const deviceId = data.deviceId;
-    const secretInput = data.password || data.deviceId; // Пароль или сам ID
-
-    // Хешируем входной ключ для сравнения
+    const secretInput = data.password || data.deviceId;
     const hashedSecret = crypto.createHash('sha256').update(secretInput).digest('hex');
 
-    if (!globalDB.users) globalDB.users = {};
-
-    // Проверка прав админа (оставляем как было, но через .env)
-    if (data.nickname === 'Admin') {
-       if (data.password !== ADMIN_KEY) {
-          console.warn(`[SECURITY] Unauthorized Admin access attempt from ${socket.id}`);
-          socket.emit('gameNotification', { message: '⛔ Invalid Admin Key!', type: 'error' });
-          return;
-       }
+    if (finalNickname === 'Admin' && data.password !== ADMIN_KEY) {
+        socket.emit('gameNotification', { message: '⛔ Invalid Admin Key!', type: 'error' });
+        return;
     }
 
-    const existingUser = globalDB.users[data.nickname];
-
+    const existingUser = globalDB.users[normalizedNick];
     if (existingUser) {
-        // Если пользователь с таким ником есть, проверяем его ключ
         if (existingUser.hashedSecret !== hashedSecret && existingUser.deviceId !== deviceId) {
-            console.log(`[SECURITY] Nickname ${data.nickname} is taken. Auth required.`);
-            socket.emit('authRequired', { nickname: data.nickname });
+            socket.emit('authRequired', { nickname: finalNickname });
             return;
         }
-        // Если ключ совпал, загружаем данные
-        players[socket.id].points = existingUser.points || 0;
+        // Загружаем только если в памяти НЕТ очков или в базе их больше
+        if (players[socket.id].points < (existingUser.points || 0)) {
+            players[socket.id].points = existingUser.points || 0;
+        }
         players[socket.id].isPremium = existingUser.isPremium || false;
     } else {
-        // Новый пользователь - регистрируем ник
-        globalDB.users[data.nickname] = {
-            hashedSecret: hashedSecret,
-            deviceId: deviceId,
-            points: 0,
-            isPremium: false
-        };
+        globalDB.users[normalizedNick] = { hashedSecret, deviceId, points: 0, isPremium: false };
         saveDB();
-        // Отправляем сигнал клиенту, чтобы он показал ID новому игроку
         socket.emit('registrationSuccess', { accessId: deviceId });
     }
 
@@ -218,37 +162,31 @@ io.on('connection', (socket) => {
     io.emit('playersUpdate', players);
     socket.emit('cargoState', droppedCargos);
     socket.emit('billboardState', billboards);
-    
-    if (finalNickname === 'Admin') {
-        socket.emit('pendingState', pendingRequests);
-    }
+    if (finalNickname === 'Admin') socket.emit('pendingState', pendingRequests);
+  });
+
+  socket.on('restockCargo', (data) => {
+    const p = players[socket.id];
+    if (p) { p.cargo = data.cargo; io.emit('playersUpdate', players); }
   });
 
   socket.on('move', (data) => {
     if (players[socket.id]) {
       players[socket.id].position = data.position;
       players[socket.id].rotation = data.rotation;
-      // We only broadcast movement to others to save bandwidth
       socket.broadcast.emit('playerMoved', players[socket.id]);
     }
   });
 
   socket.on('hit', (targetId) => {
     const target = players[targetId];
-    if (target && target.nickname === 'Admin') return; // Серверная защита
+    if (target && target.nickname === 'Admin') return;
     if (target && target.cargo && target.cargo.length > 0) {
-      console.log(`Player ${socket.id} hit ${targetId}, dropping cargo!`);
-      const droppedItem = target.cargo.pop(); // Выбиваем 1 груз из стопки!
-      const drop = {
-        id: Date.now().toString() + Math.random().toString(),
-        x: target.position[0],
-        z: target.position[2],
-        type: droppedItem
-      };
+      const droppedItem = target.cargo.pop();
+      const drop = { id: Date.now() + Math.random(), x: target.position[0], z: target.position[2], type: droppedItem };
       droppedCargos.push(drop);
-      
       io.emit('cargoDropped', drop);
-      io.emit('playersUpdate', players); // sync new cargo states
+      io.emit('playersUpdate', players);
     }
   });
 
@@ -256,13 +194,9 @@ io.on('connection', (socket) => {
     const idx = droppedCargos.findIndex(c => c.id === cargoId);
     if (idx !== -1) {
       const cargo = droppedCargos[idx];
-      if (!players[socket.id].cargo || !Array.isArray(players[socket.id].cargo)) {
-         players[socket.id].cargo = [];
-      }
+      if (!players[socket.id].cargo) players[socket.id].cargo = [];
       players[socket.id].cargo.push(cargo.type);
       droppedCargos.splice(idx, 1);
-      console.log(`Player ${socket.id} picked up ${cargo.type}`);
-      
       io.emit('cargoPicked', cargoId);
       io.emit('playersUpdate', players);
     }
@@ -271,85 +205,58 @@ io.on('connection', (socket) => {
   socket.on('deliver', () => {
     const p = players[socket.id];
     if (p && p.cargo && p.cargo.length > 0) {
-      const multiplier = p.isPremium ? 30 : 15; // Даем х2 за премиум
-      p.points += multiplier * p.cargo.length;
-      p.cargo = [];
-      
-      // Персистентное сохранение заработанного баланса на диск
-      if (p.deviceId) {
-          globalDB[p.deviceId] = { 
-              points: p.points, 
-              nickname: p.nickname,
-              isPremium: p.isPremium 
-          };
-          saveDB();
+      const multiplier = p.isPremium ? 30 : 15;
+      const cargoCount = p.cargo.length;
+      p.points += multiplier * cargoCount;
+      const normalizedNick = p.nickname?.toLowerCase();
+      if (normalizedNick && globalDB.users[normalizedNick]) {
+          if (globalDB.users[normalizedNick].points < p.points) {
+              globalDB.users[normalizedNick].points = p.points;
+              saveDB();
+          }
       }
-
+      p.cargo = [];
       io.emit('playersUpdate', players);
+      console.log(`[DELIVERY] ${p.nickname} +${multiplier * cargoCount}. Total: ${p.points}`);
     }
   });
 
-  // Логика покупки премиума: Игрок успешно совершил транзакцию SOL в браузере
   socket.on('upgradePremium', (signature) => {
     const p = players[socket.id];
-    if (p && p.deviceId) {
-      console.log(`Player ${p.deviceId} upgraded to premium! Tx: ${signature}`);
-      p.isPremium = true;
-      globalDB[p.deviceId].isPremium = true;
-      saveDB();
-      io.emit('playersUpdate', players); // Рассылаем всем новый статус!
+    const normalizedNick = p?.nickname?.toLowerCase();
+    if (p && normalizedNick && globalDB.users[normalizedNick]) {
+      p.isPremium = true; globalDB.users[normalizedNick].isPremium = true;
+      saveDB(); io.emit('playersUpdate', players);
     }
   });
 
   socket.on('updateBillboard', (data) => {
-    const request = {
-       requestId: Date.now() + Math.random(),
-       bbId: data.id,
-       text: data.text,
-       color: data.color,
-       days: data.days || 7,
-       price: data.price || 0,
-       requesterNick: players[socket.id]?.nickname || 'Anon',
-       createdAt: Date.now()
-    };
-    console.log(`[ECONOMY] New request for BB #${request.bbId} for ${request.days} days`);
-    pendingRequests.push(request);
-    io.emit('pendingState', pendingRequests);
+    const req = { requestId: Date.now() + Math.random(), bbId: data.id, text: data.text, color: data.color, days: data.days || 7, price: data.price || 0, requesterNick: players[socket.id]?.nickname || 'Anon' };
+    pendingRequests.push(req); io.emit('pendingState', pendingRequests);
   });
 
   socket.on('adminApprove', (requestId) => {
-    if (players[socket.id]?.nickname !== 'Admin') return; // SECURITY
-
+    if (players[socket.id]?.nickname !== 'Admin') return;
     const idx = pendingRequests.findIndex(r => r.requestId === requestId);
     if (idx !== -1) {
       const req = pendingRequests[idx];
       const bb = billboards.find(b => Number(b.id) === Number(req.bbId));
       if (bb) {
-        bb.text = req.text;
-        bb.color = req.color;
-        const durationMs = req.days * 24 * 60 * 60 * 1000;
-        bb.expiresAt = Date.now() + durationMs;
-        saveDB();
-        io.emit('billboardUpdate', bb);
-        console.log(`[ECONOMY] Approved BB #${req.bbId} for ${req.days} days`);
+        bb.text = req.text; bb.color = req.color;
+        bb.expiresAt = Date.now() + req.days * 86400000;
+        saveDB(); io.emit('billboardUpdate', bb);
       }
-      pendingRequests.splice(idx, 1);
-      io.emit('pendingState', pendingRequests);
+      pendingRequests.splice(idx, 1); io.emit('pendingState', pendingRequests);
     }
   });
 
   socket.on('adminReject', (requestId) => {
-    if (players[socket.id]?.nickname !== 'Admin') return; // SECURITY
-
+    if (players[socket.id]?.nickname !== 'Admin') return;
     pendingRequests = pendingRequests.filter(r => r.requestId !== requestId);
     io.emit('pendingState', pendingRequests);
   });
 
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-    delete players[socket.id];
-    io.emit('playersUpdate', players);
-  });
+  socket.on('disconnect', () => { delete players[socket.id]; io.emit('playersUpdate', players); });
 });
 
 const PORT = 3001;

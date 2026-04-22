@@ -15,6 +15,47 @@ const CARGO_TYPES = [
   'Jito-MEV Accelerator'
 ];
 
+const AnimatedNumber = ({ value, label, icon, color = "#eab308" }) => {
+  const [displayValue, setDisplayValue] = useState(value);
+  const [isBoosting, setIsBoosting] = useState(false);
+  const prevValue = useRef(value);
+
+  useEffect(() => {
+    if (value > prevValue.current) {
+      setIsBoosting(true);
+      const timer = setTimeout(() => setIsBoosting(false), 600);
+      
+      let start = displayValue;
+      const end = value;
+      const duration = 500;
+      const startTime = performance.now();
+
+      const animate = (now) => {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const current = Math.floor(start + (end - start) * progress);
+        setDisplayValue(current);
+        if (progress < 1) requestAnimationFrame(animate);
+      };
+      requestAnimationFrame(animate);
+    } else {
+      setDisplayValue(value);
+    }
+    prevValue.current = value;
+  }, [value]);
+
+  return (
+    <div className={`premium-counter ${isBoosting ? 'boost' : ''}`} style={{ borderColor: color }}>
+      <div className="counter-icon" style={{ background: color }}>{icon}</div>
+      <div className="counter-main">
+        <div className="counter-label">{label}</div>
+        <div className="counter-value" style={{ color }}>{displayValue} <span className="counter-unit">{label === 'CARGO' ? 'x' : '$CMKZ'}</span></div>
+      </div>
+      {isBoosting && <div className="counter-glitch" style={{ background: color }}></div>}
+    </div>
+  );
+};
+
 const MAP_LIMIT = 4000;
 const ALATAU_Z = -3500;
 
@@ -265,20 +306,25 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards, a
             }
         }
        if (onDeliveryPad) {
-          socket.emit('deliver');
-          r.position.set((Math.random() - 0.5) * 40, 0, 200);
-          r.yaw = 0;
-          r.velocity = 0;
-          r.targetVelocity = 0;
+           console.log("[DEBUG] AT DELIVERY PAD! Emitting deliver...");
+           socket.emit('deliver');
+           
+           // Добавляем небольшую задержку перед респауном и ре-стоком, 
+           // чтобы сервер успел обработать 'deliver' до прилета нового 'join'
+           setTimeout(() => {
+               r.position.set((Math.random() - 0.5) * 40, 0, 200);
+               r.yaw = 0;
+               r.velocity = 0;
+               r.targetVelocity = 0;
 
-          if (!r.isRestocking) {
-              r.isRestocking = true;
-              const newCargo = CARGO_TYPES[Math.floor(Math.random() * CARGO_TYPES.length)];
-              const deviceId = localStorage.getItem('cmkz_device_id');
-              socket.emit('join', { nickname: myPlayerState.nickname, cargo: [newCargo], deviceId, password: adminKey });
-              setTimeout(() => { r.isRestocking = false; }, 1000);
-          }
-       }
+               if (!r.isRestocking) {
+                   r.isRestocking = true;
+                   const newCargo = CARGO_TYPES[Math.floor(Math.random() * CARGO_TYPES.length)];
+                   socket.emit('restockCargo', { cargo: [newCargo] });
+                   setTimeout(() => { r.isRestocking = false; }, 1000);
+               }
+           }, 200);
+        }
     }
   });
 
@@ -1041,10 +1087,9 @@ function App() {
           )}
 
           <div className="hud-top-left interactive">
-            <div className="hud-panel">
+            <div className="hud-panel-mini" style={{ marginBottom: '10px' }}>
                <button 
-                  className="interactive" 
-                  style={{ background: 'rgba(234, 179, 8, 0.1)', border: '1px solid #eab308', color: '#eab308', fontSize: '9px', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: '900' }}
+                  className="interactive-btn" 
                   onClick={() => {
                       navigator.clipboard.writeText(localStorage.getItem('cmkz_device_id'));
                       showNotification('Access ID copied to clipboard!', 'success');
@@ -1053,8 +1098,19 @@ function App() {
                   📋 COPY ACCESS ID
                </button>
             </div>
-            <div className="hud-panel">CARGO: <span>{me?.cargo && me.cargo.length > 0 ? `${me.cargo.length}x CRATES` : 'NONE'}</span></div>
-            <div className="hud-panel">BAL: <span>{Math.floor((me?.points || 0) / 15)}</span> $CMKZ</div>
+            
+            <AnimatedNumber 
+              value={me?.cargo?.length || 0} 
+              label="CARGO" 
+              icon="📦" 
+              color="#eab308" 
+            />
+            <AnimatedNumber 
+              value={Math.floor((me?.points || 0) / 15)} 
+              label="BALANCE" 
+              icon="💰" 
+              color="#14F195" 
+            />
           </div>
 
           <div className="hud-top-right interactive">
