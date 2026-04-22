@@ -845,6 +845,13 @@ function App() {
 
   return (
     <>
+      <Canvas camera={{ position: [0, 5, 10], fov: 60, far: 10000 }}>
+        <World billboards={billboards} players={players} />
+        {inGame && <PlayerController players={playersRef.current} droppedCargos={droppedCargos} myPlayerState={me} billboards={billboards} adminKey={adminKey} />}
+        {inGame && <OtherPlayers players={players} playersRef={playersRef} />}
+        {inGame && droppedCargos.map(item => <CargoBox key={item.id} item={item} />)}
+      </Canvas>
+
       {!inGame ? (
         <div className="login-screen interactive">
           {showRegModal && (
@@ -957,7 +964,11 @@ function App() {
                          <div className="duration-selector" style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
                             {[1, 7, 30].map(d => {
                                // ПРОБРОС: Сначала берем цену с сервера, если ее нет - из локального конфига
-                               const localRates = { 0: {1:1000, 7:5000, 30:15000}, 1: {1:2000, 7:10000, 30:30000}, 2: {1:500, 7:2500, 30:7000} };
+                               const localRates = { 
+                                 0: {1:5000, 7:20000, 30:50000}, // STANDARD (Premium)
+                                 1: {1:5000, 7:20000, 30:50000}, // MEGA (Premium)
+                                 2: {1:1000, 7:4000, 30:10000}    // LOW (Basic)
+                               };
                                const p = nearBb.prices?.[d] || localRates[nearBb.type || 0]?.[d] || 0;
                                
                                return (
@@ -984,7 +995,7 @@ function App() {
                             })}
                          </div>
                          <div className="price-info" style={{ textAlign: 'center', fontSize: '18px', fontWeight: 'bold', color: '#14F195' }}>
-                            SELECTED: {nearBb.prices?.[rentDays] || ({0:{1:1000,7:5000,30:15000},1:{1:2000,7:10000,30:30000},2:{1:500,7:2500,30:7000}}[nearBb.type||0]?.[rentDays]) || 0} KZT
+                            SELECTED: {nearBb.prices?.[rentDays] || ({0:{1:5000,7:20000,30:50000},1:{1:5000,7:20000,30:50000},2:{1:1000,7:4000,30:10000}}[nearBb.type||0]?.[rentDays]) || 0} KZT
                          </div>
                       </div>
 
@@ -992,7 +1003,7 @@ function App() {
                          <div className="qr-box">
                             <img src={KASPI_QR_BASE64} alt="Kaspi QR" style={{ width: "150px", height: "auto", display: "block", margin: "0 auto", borderRadius: "8px" }}/>
                          </div>
-                         <p>Scan Kaspi QR & Send: <b>{nearBb.prices?.[rentDays] || ({0:{1:1000,7:5000,30:15000},1:{1:2000,7:10000,30:30000},2:{1:500,7:2500,30:7000}}[nearBb.type||0]?.[rentDays]) || 0} KZT</b></p>
+                         <p>Scan Kaspi QR & Send: <b>{nearBb.prices?.[rentDays] || ({0:{1:5000,7:20000,30:50000},1:{1:5000,7:20000,30:50000},2:{1:1000,7:4000,30:10000}}[nearBb.type||0]?.[rentDays]) || 0} KZT</b></p>
                          <p style={{ fontSize: '10px', opacity: 0.7 }}>Message: <b>AD-{nearBb.id}</b></p>
                       </div>
 
@@ -1000,7 +1011,11 @@ function App() {
                          <button className="cancel" onClick={() => setRentModal(false)}>CANCEL</button>
                          <button className="confirm" onClick={() => {
                             if (rentText) {
-                               const localRates = { 0: {1:1000, 7:5000, 30:15000}, 1: {1:2000, 7:10000, 30:30000}, 2: {1:500, 7:2500, 30:7000} };
+                               const localRates = { 
+                                 0: {1:5000, 7:20000, 30:50000}, 
+                                 1: {1:5000, 7:20000, 30:50000}, 
+                                 2: {1:1000, 7:4000, 30:10000} 
+                               };
                                const price = nearBb.prices?.[rentDays] || localRates[nearBb.type || 0]?.[rentDays] || 0;
                                console.log(`[ECONOMY] SENDING REQUEST: BB #${nearBb.id}, Term: ${rentDays}, Price: ${price}`);
                                socket.emit('updateBillboard', { 
@@ -1222,14 +1237,6 @@ function App() {
           )}
         </div>
       )}
-
-      {/* Увеличиваем дальность отрисовки (far: 10000), чтобы не было черных ям */}
-      <Canvas camera={{ position: [0, 5, 10], fov: 60, far: 10000 }}>
-        <World billboards={billboards} players={players} />
-        {inGame && <PlayerController players={playersRef.current} droppedCargos={droppedCargos} myPlayerState={me} billboards={billboards} adminKey={adminKey} />}
-        {inGame && <OtherPlayers players={players} playersRef={playersRef} />}
-        {inGame && droppedCargos.map(item => <CargoBox key={item.id} item={item} />)}
-      </Canvas>
     </>
   );
 }

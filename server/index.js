@@ -52,25 +52,22 @@ let billboards = globalDB.billboards;
 let pendingRequests = []; 
 let pendingPremiumRequests = []; // Новые заявки на GENESIS статус
 
-if (billboards.length < 101) { // Если меньше 101 или пустая, пересоздаем до 270
+if (billboards.length < 101) {
     billboards = [];
     const neonColors = ['#eab308', '#14F195', '#ff00ff', '#00ffff', '#ff4500', '#00bbff'];
-    for (let i = 0; i < 270; i++) {
-        let x = (Math.random() - 0.5) * 7800; // Почти вся ширина карты
-        let z = (Math.random() * 4500) - 3800; // Распределяем по всей глубине от старта до Алатау
-        const type = i % 3 === 0 ? (i % 6 === 0 ? 1 : 0) : 2; // Более редкие Мега, частые Лоу
-        
-        const priceTemplate = {
-            1: { 1: 2000, 7: 10000, 30: 30000 }, // MEGA
-            0: { 1: 1000, 7: 5000, 30: 15000 },  // STANDARD
-            2: { 1: 500, 7: 2500, 30: 7000 }      // LOW
-        };
+    const premiumPrice = { 1: 5000, 7: 20000, 30: 50000 };
+    const basicPrice = { 1: 1000, 7: 4000, 30: 10000 };
 
+    for (let i = 0; i < 270; i++) {
+        let x = (Math.random() - 0.5) * 7800;
+        let z = (Math.random() * 4500) - 3800;
+        const type = i % 3 === 0 ? (i % 6 === 0 ? 1 : 0) : 2;
+        
         billboards.push({
             id: i, x, z, rotY: Math.random() * Math.PI * 2,
             text: `AD SPACE #${i}`, color: neonColors[i % neonColors.length],
             type, expiresAt: null,
-            prices: priceTemplate[type]
+            prices: (type === 1 || type === 0) ? premiumPrice : basicPrice
         });
     }
     saveDB();

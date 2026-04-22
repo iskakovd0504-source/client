@@ -4,7 +4,7 @@
   "description": "Multiplayer server for Air Delivery KZ",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js", "dev": "nodemon index.js"
+    "start": "node index.js", "dev": "nodemon --ignore database.json index.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
