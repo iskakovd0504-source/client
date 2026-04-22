@@ -344,93 +344,185 @@ const CargoBox = ({ item }) => {
 };
 // ObstacleInstances удален по просьбе пользователя для минимализма
 
-const BillboardItem = ({ b }) => {
-    const textRef = useRef();
-    const [visible, setVisible] = useState(false);
-
-    useFrame((state) => {
-        const dist = state.camera.position.distanceTo(new THREE.Vector3(b.x, 0, b.z));
-        const shouldBeVisible = dist < 1000; // Увеличиваем до 1км
-        if (visible !== shouldBeVisible) {
-            setVisible(shouldBeVisible);
-        }
-    });
+const BillboardText = ({ b, visible }) => {
+    if (!visible) return null;
 
     const isMega = b.type === 1;
     const isLow = b.type === 2;
-    
-    // Geometry based on type
-    const width = isMega ? 120 : (isLow ? 40 : 60);
     const height = isMega ? 60 : (isLow ? 20 : 30);
     const poleHeight = isMega ? 60 : (isLow ? 8 : 40);
     const boardY = poleHeight + height/2;
+    const width = isMega ? 120 : (isLow ? 40 : 60);
 
     return (
-        <group position={[b.x, 0, b.z]} rotation={[0, b.rotY, 0]}>
-            {/* Poles */}
-            {isMega ? (
-                <>
-                    <Box args={[3, poleHeight, 3]} position={[-width/4, poleHeight/2, 0]} castShadow>
-                        <meshStandardMaterial color="#1a1a1a" />
-                    </Box>
-                    <Box args={[3, poleHeight, 3]} position={[width/4, poleHeight/2, 0]} castShadow>
-                        <meshStandardMaterial color="#1a1a1a" />
-                    </Box>
-                </>
-            ) : (
-                <Box args={[2, poleHeight, 2]} position={[0, poleHeight/2, 0]} castShadow>
-                    <meshStandardMaterial color="#111" />
-                </Box>
-            )}
+        <group position={[b.x, boardY, b.z]} rotation={[0, b.rotY, 0]}>
+            <Text 
+                position={[0, 0, 2.1]} 
+                fontSize={height/6} 
+                color="#ffffff" 
+                anchorX="center" 
+                anchorY="middle" 
+                maxWidth={width * 0.9} 
+                textAlign="center" 
+                outlineWidth={0.2} 
+                outlineColor="#000"
+            >
+                {b.text}
+            </Text>
+            <Text 
+                position={[0, 0, -2.1]} 
+                rotation={[0, Math.PI, 0]}
+                fontSize={height/6} 
+                color="#ffffff" 
+                anchorX="center" 
+                anchorY="middle" 
+                maxWidth={width * 0.9} 
+                textAlign="center" 
+                outlineWidth={0.2} 
+                outlineColor="#000"
+            >
+                {b.text}
+            </Text>
+        </group>
+    );
+};
 
-            {/* The Board */}
-            <Box args={[width, height, 4]} position={[0, boardY, 0]} castShadow>
-                <meshStandardMaterial color="#0a0f1e" emissive={b.color} emissiveIntensity={0.12} />
-            </Box>
+const InstancedBillboards = ({ billboards }) => {
+    const megaPoles = useRef();
+    const megaBoards = useRef();
+    const stdPoles = useRef();
+    const stdBoards = useRef();
+    const lowPoles = useRef();
+    const lowBoards = useRef();
+    
+    // Состояние видимости текста для каждого билборда
+    const [visibleMap, setVisibleMap] = useState({});
 
-            {/* Double Sided Text (LOD optimized via visible prop) */}
-            <group visible={visible}>
-                <Text 
-                    position={[0, boardY, 2.1]} 
-                    fontSize={height/6} 
-                    color={b.color} 
-                    anchorX="center" 
-                    anchorY="middle" 
-                    maxWidth={width * 0.9} 
-                    textAlign="center" 
-                    outlineWidth={0.15} 
-                    outlineColor="#000"
-                >
-                    {b.text}
-                </Text>
-                <Text 
-                    position={[0, boardY, -2.1]} 
-                    rotation={[0, Math.PI, 0]}
-                    fontSize={height/6} 
-                    color={b.color} 
-                    anchorX="center" 
-                    anchorY="middle" 
-                    maxWidth={width * 0.9} 
-                    textAlign="center" 
-                    outlineWidth={0.15} 
-                    outlineColor="#000"
-                >
-                    {b.text}
-                </Text>
-            </group>
+    useFrame((state) => {
+        const camPos = state.camera.position;
+        const newMap = {};
+        for (const b of billboards) {
+            const d = Math.hypot(camPos.x - b.x, camPos.z - b.z);
+            if (d < 800) newMap[b.id] = true;
+        }
+        // Чтобы не дергать стейт каждый кадр, проверяем изменения
+        if (Object.keys(newMap).length !== Object.keys(visibleMap).length) {
+            setVisibleMap(newMap);
+        }
+    });
+
+    useEffect(() => {
+        if (!billboards.length) return;
+
+        const temp = new THREE.Object3D();
+        const iterators = { 0: 0, 1: 0, 2: 0 };
+
+        billboards.forEach((b) => {
+            const type = b.type || 0;
+            const isMega = type === 1;
+            const isLow = type === 2;
+            
+            const poleHeight = isMega ? 60 : (isLow ? 8 : 40);
+            const height = isMega ? 60 : (isLow ? 20 : 30);
+            const boardY = poleHeight + height/2;
+            const width = isMega ? 120 : (isLow ? 40 : 60);
+
+            const idx = iterators[type]++;
+
+            if (isMega) {
+                const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, b.rotY, 0));
+                
+                // Левый столб
+                const offsetL = new THREE.Vector3(-width/4, poleHeight/2, 0).applyQuaternion(quat);
+                temp.position.set(b.x + offsetL.x, poleHeight/2, b.z + offsetL.z);
+                temp.rotation.set(0, b.rotY, 0);
+                temp.updateMatrix();
+                megaPoles.current.setMatrixAt(idx * 2, temp.matrix);
+                
+                // Правый столб
+                const offsetR = new THREE.Vector3(width/4, poleHeight/2, 0).applyQuaternion(quat);
+                temp.position.set(b.x + offsetR.x, poleHeight/2, b.z + offsetR.z);
+                temp.rotation.set(0, b.rotY, 0);
+                temp.updateMatrix();
+                megaPoles.current.setMatrixAt(idx * 2 + 1, temp.matrix);
+
+                // Борд
+                temp.position.set(b.x, boardY, b.z);
+                temp.updateMatrix();
+                megaBoards.current.setMatrixAt(idx, temp.matrix);
+                megaBoards.current.setColorAt(idx, new THREE.Color(b.color));
+            } else {
+                const targetPoles = isLow ? lowPoles : stdPoles;
+                const targetBoards = isLow ? lowBoards : stdBoards;
+
+                temp.position.set(b.x, poleHeight/2, b.z);
+                temp.rotation.set(0, b.rotY, 0);
+                temp.updateMatrix();
+                targetPoles.current.setMatrixAt(idx, temp.matrix);
+                
+                temp.position.set(b.x, boardY, b.z);
+                temp.updateMatrix();
+                targetBoards.current.setMatrixAt(idx, temp.matrix);
+                targetBoards.current.setColorAt(idx, new THREE.Color(b.color));
+            }
+        });
+
+        [megaPoles, megaBoards, stdPoles, stdBoards, lowPoles, lowBoards].forEach(r => {
+            if (r.current) {
+                r.current.instanceMatrix.needsUpdate = true;
+                if (r.current.instanceColor) r.current.instanceColor.needsUpdate = true;
+            }
+        });
+    }, [billboards]);
+
+    const counts = useMemo(() => {
+        const c = { 0: 0, 1: 0, 2: 0 };
+        billboards.forEach(b => c[b.type || 0]++);
+        return c;
+    }, [billboards]);
+
+    return (
+        <group>
+            {/* MEGA */}
+            <instancedMesh ref={megaPoles} args={[null, null, counts[1] * 2]} frustumCulled={false}>
+                <boxGeometry args={[3, 60, 3]} />
+                <meshStandardMaterial color="#1a1a1a" />
+            </instancedMesh>
+            <instancedMesh ref={megaBoards} args={[null, null, counts[1]]} frustumCulled={false}>
+                <boxGeometry args={[120, 60, 4]} />
+                <meshStandardMaterial />
+            </instancedMesh>
+
+            {/* STANDARD */}
+            <instancedMesh ref={stdPoles} args={[null, null, counts[0]]} frustumCulled={false}>
+                <boxGeometry args={[2, 40, 2]} />
+                <meshStandardMaterial color="#111" />
+            </instancedMesh>
+            <instancedMesh ref={stdBoards} args={[null, null, counts[0]]} frustumCulled={false}>
+                <boxGeometry args={[60, 30, 4]} />
+                <meshStandardMaterial />
+            </instancedMesh>
+
+            {/* LOW */}
+            <instancedMesh ref={lowPoles} args={[null, null, counts[2]]} frustumCulled={false}>
+                <boxGeometry args={[2, 8, 2]} />
+                <meshStandardMaterial color="#111" />
+            </instancedMesh>
+            <instancedMesh ref={lowBoards} args={[null, null, counts[2]]} frustumCulled={false}>
+                <boxGeometry args={[40, 20, 4]} />
+                <meshStandardMaterial />
+            </instancedMesh>
+
+            {/* Текст рендерим отдельно с LOD управлением через visibleMap */}
+            {billboards.map(b => (
+                <BillboardText key={`text-${b.id}`} b={b} visible={!!visibleMap[b.id]} />
+            ))}
         </group>
     );
 };
 
 const ObstaclesAndBillboards = ({ billboards }) => {
-    return (
-        <>
-            {/* Препятствия удалены */}
-            {(billboards || []).map((b) => (
-                <BillboardItem key={`bb-${b.id}`} b={b} />
-            ))}
-        </>
-    );
+    return <InstancedBillboards billboards={billboards || []} />;
 };
 
 const OtherPlayers = ({ players, playersRef }) => {
@@ -1052,7 +1144,7 @@ function App() {
       )}
 
       {/* Увеличиваем дальность отрисовки (far: 10000), чтобы не было черных ям */}
-      <Canvas shadows camera={{ position: [0, 5, 10], fov: 60, far: 10000 }}>
+      <Canvas camera={{ position: [0, 5, 10], fov: 60, far: 10000 }}>
         <World billboards={billboards} players={players} />
         {inGame && <PlayerController players={playersRef.current} droppedCargos={droppedCargos} myPlayerState={me} billboards={billboards} adminKey={adminKey} />}
         {inGame && <OtherPlayers players={players} playersRef={playersRef} />}

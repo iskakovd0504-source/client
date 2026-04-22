@@ -194,7 +194,7 @@ body {
 
 .hud-top-left {
   position: absolute;
-  top: 20px;
+  top: 60px;
   left: 20px;
   display: flex;
   flex-direction: column;
