@@ -8,11 +8,11 @@ import { KASPI_QR_BASE64 } from './KaspiQR';
 const socket = io('http://localhost:3001');
 
 const CARGO_TYPES = [
-  '10x ASIC Antminer S19',
-  'Golden Trezor T',
-  '1000 BTC Hardware Node',
-  'Satoshi Nakamoto Statue',
-  'Pallet of RTX 5090s'
+  'Solana Validator Node',
+  'Saga Mobile (Batch 2)',
+  'Dedicated RPC Cluster',
+  'Genesis Block Snapshot',
+  'Jito-MEV Accelerator'
 ];
 
 const MAP_LIMIT = 4000;
@@ -629,6 +629,9 @@ function App() {
   const [rentColor, setRentColor] = useState("#eab308");
   const [rentDays, setRentDays] = useState(7); // Срок аренды (7 дней по умолчанию)
   const [gameNotification, setGameNotification] = useState(null);
+  const [showRegModal, setShowRegModal] = useState(false);
+  const [accessIdToSave, setAccessIdToSave] = useState("");
+  const [authRequired, setAuthRequired] = useState(false);
 
   const showNotification = (msg, type = 'info') => {
     setGameNotification({ msg, type });
@@ -664,6 +667,15 @@ function App() {
     });
     socket.on('gameNotification', (data) => {
         showNotification(data.message, data.type);
+    });
+    socket.on('authRequired', () => {
+        setAuthRequired(true);
+        setInGame(false);
+        showNotification('Nickname taken. Enter Access ID.', 'error');
+    });
+    socket.on('registrationSuccess', (data) => {
+        setAccessIdToSave(data.accessId);
+        setShowRegModal(true);
     });
 
     // Авто-реконнект: теперь берем данные из REFS, которые всегда актуальны
@@ -731,16 +743,16 @@ function App() {
 
   const handleJoin = () => {
     if (nickname.trim()) {
-      // Если это админ, но ключ не введен (хотя бы 1 символ для пробы) - можно добавить проверку тут или на сервере
       let deviceId = localStorage.getItem('cmkz_device_id');
       if (!deviceId) {
-         deviceId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+         deviceId = Math.random().toString(36).substring(2, 11).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
          localStorage.setItem('cmkz_device_id', deviceId);
       }
 
-      const activeCargo = CARGO_TYPES[Math.floor(Math.random() * CARGO_TYPES.length)];
-      socket.emit('join', { nickname, cargo: [activeCargo], deviceId, password: adminKey });
-      setInGame(true);
+      socket.emit('join', { nickname, deviceId, password: adminKey });
+      // We don't set inGame(true) setInGame(true) here immediately, 
+      // instead we wait for playerUpdate or success, or handleAuthRequired
+      setInGame(true); 
     }
   };
 
@@ -752,20 +764,33 @@ function App() {
     <>
       {!inGame ? (
         <div className="login-screen interactive">
+          {showRegModal && (
+            <div className="modal-overlay">
+               <div className="rent-modal">
+                  <h2>✅ PILOT REGISTERED</h2>
+                  <p>Save your Access ID to login from any device:</p>
+                  <div className="req-text-preview" style={{ fontSize: '18px', color: '#eab308' }}>{accessIdToSave}</div>
+                  <button className="confirm" onClick={() => setShowRegModal(false)}>I HAVE SAVED IT</button>
+               </div>
+            </div>
+          )}
           <div className="login-card">
-            <div className="status-badge">🟢 ONLINE: 3,421 RUNNERS</div>
-            <h1>CYBER DELIVERY KZ</h1>
-            <div className="subtitle">Wasteland Interceptor to Alatau City</div>
+            <div className="status-badge">
+              <span className="pulse-dot"></span> 
+              NETWORK ACTIVE: {Object.keys(players).length} PILOTS ONLINE
+            </div>
+            <h1>CRYPTOMARKET.KZ</h1>
+            <div className="subtitle">Decentralized Asset Distribution Protocol</div>
             
             <div className="game-rules">
-               <div>📦 Loot ASICs in the Wasteland</div>
-               <div>🔫 Blast Pirates with Plasma</div>
-               <div>💰 Cash out $CMKZ at Alatau</div>
+               <div>📦 Secure and distribute Solana Validator Nodes</div>
+               <div>🔫 Protect your cargo from rivals</div>
+               <div>💰 Exchange loot for $CMKZ at Alatau City</div>
             </div>
 
             <input 
               type="text" 
-              placeholder="Enter alias..." 
+              placeholder="Enter Pilot ID..." 
               maxLength={15}
               value={nickname} 
               onChange={e => {
@@ -774,11 +799,12 @@ function App() {
               }}
               onKeyDown={e => e.key === 'Enter' && handleJoin()}
             />
-            {nickname.trim().toLowerCase() === 'admin' && (
+            {(nickname.trim().toLowerCase() === 'admin' || authRequired) && (
               <input 
                 type="password" 
-                placeholder="Admin Secret Key..." 
-                style={{ marginTop: '10px', background: 'rgba(234, 179, 8, 0.1)', border: '1px solid #eab308', borderRadius: '4px', padding: '10px', color: '#fff' }}
+                placeholder={authRequired ? "Enter Access ID..." : "Admin Secret Key..."} 
+                className="interactive"
+                style={{ marginTop: '10px', background: 'rgba(234, 179, 8, 0.1)', border: '1px solid #eab308', borderRadius: '4px', padding: '14px', color: '#fff', width: '100%', outline: 'none' }}
                 value={adminKey} 
                 onChange={e => {
                     setAdminKey(e.target.value);
@@ -787,7 +813,7 @@ function App() {
                 onKeyDown={e => e.key === 'Enter' && handleJoin()}
               />
             )}
-            <button onClick={handleJoin}>ENTER WASTELAND</button>
+            <button onClick={handleJoin} style={{ marginTop: '20px' }}>START</button>
           </div>
         </div>
       ) : (
@@ -968,6 +994,7 @@ function App() {
           )}
 
           <div className="hud-top-left interactive">
+            <div className="hud-panel">PILOT ID: <span style={{ fontSize: '10px', color: '#eab308' }}>{localStorage.getItem('cmkz_device_id')}</span></div>
             <div className="hud-panel">CARGO: <span>{me?.cargo && me.cargo.length > 0 ? `${me.cargo.length}x CRATES` : 'NONE'}</span></div>
             <div className="hud-panel">BAL: <span>{Math.floor((me?.points || 0) / 15)}</span> $CMKZ</div>
           </div>
@@ -997,10 +1024,14 @@ function App() {
 
           <div className="premium-card">
             <div className="premium-tag">x2 Farm Boost</div>
-            <h3>Golden DOG Cybertruck</h3>
-            <p>Stand out in Alatau City. Double your $CMKZ airdrop pts.</p>
+            <h3>GENESIS Cybertruck</h3>
+            <p>[Cost: 0.25 SOL] Stand out in Alatau City. Double your $CMKZ airdrop pts.</p>
             
-            {!walletAddress ? (
+            {me?.isPremium ? (
+                 <div style={{ marginTop: '15px', padding: '10px', background: 'rgba(20, 241, 149, 0.1)', border: '1px solid #14F195', borderRadius: '8px', color: '#14F195', fontWeight: '900', fontSize: '11px', textAlign: 'center' }}>
+                   ✔️ GENESIS STATUS ACTIVE
+                 </div>
+            ) : !walletAddress ? (
                  <button 
                     style={{ marginTop: '10px', backgroundColor: '#eab308', color: '#000' }}
                     onClick={connectPhantom}
@@ -1009,7 +1040,7 @@ function App() {
                  </button>
             ) : (
                  <button 
-                    style={{ backgroundColor: '#14F195', color: '#000' }}
+                    style={{ backgroundColor: '#14F195', color: '#000', marginTop: '10px' }}
                     onClick={async () => {
                        try {
                           const solanaWeb3 = window.solanaWeb3;
@@ -1023,7 +1054,7 @@ function App() {
                               solanaWeb3.SystemProgram.transfer({
                                   fromPubkey: new solanaWeb3.PublicKey(walletAddress),
                                   toPubkey: adminPubKey,
-                                  lamports: 0.05 * solanaWeb3.LAMPORTS_PER_SOL
+                                  lamports: 0.25 * solanaWeb3.LAMPORTS_PER_SOL
                               })
                           );
                           
@@ -1041,7 +1072,7 @@ function App() {
                        }
                     }}
                  >
-                   PAY 0.05 SOL
+                   ACTIVATE GENESIS
                  </button>
             )}
           </div>

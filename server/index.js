@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
@@ -66,11 +67,11 @@ const saveDB = () => {
 };
 
 const CARGO_TYPES = [
-  '10x ASIC Antminer S19',
-  'Golden Trezor T',
-  '1000 BTC Hardware Node',
-  'Satoshi Nakamoto Statue',
-  'Pallet of RTX 5090s'
+  'Solana Validator Node',
+  'Saga Mobile (Batch 2)',
+  'Dedicated RPC Cluster',
+  'Genesis Block Snapshot',
+  'Jito-MEV Accelerator'
 ];
 
 // Initialize 4 autopilot bots
@@ -168,48 +169,58 @@ io.on('connection', (socket) => {
 
   socket.on('join', (data) => {
     let finalNickname = data.nickname;
-    
-    // Проверка прав админа
+    const deviceId = data.deviceId;
+    const secretInput = data.password || data.deviceId; // Пароль или сам ID
+
+    // Хешируем входной ключ для сравнения
+    const hashedSecret = crypto.createHash('sha256').update(secretInput).digest('hex');
+
+    if (!globalDB.users) globalDB.users = {};
+
+    // Проверка прав админа (оставляем как было, но через .env)
     if (data.nickname === 'Admin') {
        if (data.password !== ADMIN_KEY) {
-          console.warn(`[SECURITY] Unauthorized Admin login attempt from ${socket.id}`);
-          finalNickname = 'Runner-' + Math.floor(Math.random()*1000);
-       } else {
-          console.log(`[SECURITY] Admin access granted to ${socket.id}`);
+          console.warn(`[SECURITY] Unauthorized Admin access attempt from ${socket.id}`);
+          socket.emit('gameNotification', { message: '⛔ Invalid Admin Key!', type: 'error' });
+          return;
        }
+    }
+
+    const existingUser = globalDB.users[data.nickname];
+
+    if (existingUser) {
+        // Если пользователь с таким ником есть, проверяем его ключ
+        if (existingUser.hashedSecret !== hashedSecret && existingUser.deviceId !== deviceId) {
+            console.log(`[SECURITY] Nickname ${data.nickname} is taken. Auth required.`);
+            socket.emit('authRequired', { nickname: data.nickname });
+            return;
+        }
+        // Если ключ совпал, загружаем данные
+        players[socket.id].points = existingUser.points || 0;
+        players[socket.id].isPremium = existingUser.isPremium || false;
+    } else {
+        // Новый пользователь - регистрируем ник
+        globalDB.users[data.nickname] = {
+            hashedSecret: hashedSecret,
+            deviceId: deviceId,
+            points: 0,
+            isPremium: false
+        };
+        saveDB();
+        // Отправляем сигнал клиенту, чтобы он показал ID новому игроку
+        socket.emit('registrationSuccess', { accessId: deviceId });
     }
 
     players[socket.id].nickname = finalNickname;
     players[socket.id].cargo = data.cargo;
-    players[socket.id].deviceId = data.deviceId;
-
-    // ПРЕДОТВРАЩЕНИЕ РАЗДВОЕНИЯ: Если игрок с таким же deviceId уже есть, удаляем старую сессию
-    if (data.deviceId) {
-       Object.keys(players).forEach(pid => {
-           if (pid !== socket.id && players[pid].deviceId === data.deviceId) {
-               console.log(`[CLEANUP] Removing ghost player ${pid} for device ${data.deviceId}`);
-               delete players[pid];
-           }
-       });
-
-       if (globalDB[data.deviceId]) {
-           players[socket.id].points = globalDB[data.deviceId].points;
-           players[socket.id].isPremium = globalDB[data.deviceId].isPremium || false;
-       } else {
-           globalDB[data.deviceId] = { points: 0, nickname: data.nickname, isPremium: false };
-       }
-    }
+    players[socket.id].deviceId = deviceId;
 
     io.emit('playersUpdate', players);
     socket.emit('cargoState', droppedCargos);
     socket.emit('billboardState', billboards);
-    console.log(`[DEBUG] Sent ${billboards.length} billboards to player ${socket.id}`);
     
     if (finalNickname === 'Admin') {
         socket.emit('pendingState', pendingRequests);
-    } else if (data.nickname === 'Admin') {
-        // Если пытался зайти как админ, но не прошел проверку
-        socket.emit('gameNotification', { message: '⛔ Invalid Admin Key!', type: 'error' });
     }
   });
 
