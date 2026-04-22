@@ -173,7 +173,10 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards, a
   useFrame((state, delta) => {
     const r = ref.current;
     const isLocalAdmin = myPlayerState?.nickname === 'Admin';
-    const m = isLocalAdmin ? 4 : 1;
+    const isPremium = myPlayerState?.isPremium;
+    
+    // Множитель скорости: Admin = 4x, Premium = 2x, Обычный = 1x
+    const m = isLocalAdmin ? 4 : (isPremium ? 2 : 1);
 
     if (keys['KeyW']) r.targetVelocity += 0.0125 * m; 
     if (keys['KeyS']) r.targetVelocity -= 0.025 * m; 
