@@ -5,7 +5,8 @@ import { io } from 'socket.io-client';
 import * as THREE from 'three';
 import { KASPI_QR_BASE64 } from './KaspiQR';
 
-const socket = io('http://localhost:3001');
+const SOCKET_URL = window.location.hostname === 'localhost' ? 'http://localhost:3001' : window.location.origin.replace(':3000', ':3001');
+const socket = io(SOCKET_URL);
 
 const CARGO_TYPES = [
   'Solana Validator Node',
@@ -118,7 +119,7 @@ const VoxelCar = ({ position, rotation, isPremium, isAdmin }) => {
   );
 };
 
-const PlayerController = ({ players, droppedCargos, myPlayerState, billboards, adminKey }) => {
+const PlayerController = ({ players, setPlayers, playersRef, droppedCargos, myPlayerState, billboards, adminKey }) => {
   const { camera } = useThree();
   const ref = useRef({
     position: new THREE.Vector3(0, 0, 200),
@@ -132,15 +133,19 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards, a
 
   const [keys, setKeys] = useState({});
   const lasersRef = useRef([]);
+  const lastShotTimeRef = useRef(0);
   const [laserCounter, setLaserCounter] = useState(0);
 
   useEffect(() => {
     const handleShoot = () => {
+      if (Date.now() - lastShotTimeRef.current < 1000) return;
+      lastShotTimeRef.current = Date.now();
+
       const { position, yaw } = ref.current;
       const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, 0, 'YXZ'));
       const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
       
-      const newLaser = {
+        const newLaser = {
         id: Date.now() + Math.random(),
         position: position.clone().add(new THREE.Vector3(0, 1.5, 0)).add(direction.clone().multiplyScalar(5)),
         velocity: direction.multiplyScalar(2500), 
@@ -152,7 +157,28 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards, a
       setLaserCounter(c => c + 1);
     };
 
+    const handleRespawn = (data) => {
+        console.log("[SOCKET] Authoritative Respawn Received!", data);
+        const r = ref.current;
+        r.position.set(data.position[0], data.position[1], data.position[2]);
+        r.yaw = 0;
+        r.targetYaw = 0;
+        r.velocity = 0;
+        r.targetVelocity = 0;
+        
+        // Очищаем соседей, но сохраняем СВОИ обновленные данные
+        setPlayers(prev => {
+            const me = prev[socket.id] || {};
+            const updatedMe = { ...me, position: data.position, cargo: data.cargo };
+            playersRef.current = { [socket.id]: updatedMe };
+            return { [socket.id]: updatedMe };
+        });
+    };
+
+    socket.on('authoritativeRespawn', handleRespawn);
+
     const handleKeyDown = (e) => {
+      if (e.repeat) return;
       setKeys((k) => ({ ...k, [e.code]: true }));
       if (e.code === 'Space') handleShoot();
     };
@@ -259,6 +285,7 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards, a
                if (target.nickname === 'Admin') continue;
                socket.emit('hit', pid); 
                hitInfo = true;
+               l.life = 0;
                break;
             }
          }
@@ -309,24 +336,14 @@ const PlayerController = ({ players, droppedCargos, myPlayerState, billboards, a
             }
         }
        if (onDeliveryPad) {
-           console.log("[DEBUG] AT DELIVERY PAD! Emitting deliver...");
-           socket.emit('deliver');
-           
-           // Добавляем небольшую задержку перед респауном и ре-стоком, 
-           // чтобы сервер успел обработать 'deliver' до прилета нового 'join'
-           setTimeout(() => {
-               r.position.set((Math.random() - 0.5) * 40, 0, 200);
-               r.yaw = 0;
-               r.velocity = 0;
-               r.targetVelocity = 0;
-
-               if (!r.isRestocking) {
-                   r.isRestocking = true;
-                   const newCargo = CARGO_TYPES[Math.floor(Math.random() * CARGO_TYPES.length)];
-                   socket.emit('restockCargo', { cargo: [newCargo] });
-                   setTimeout(() => { r.isRestocking = false; }, 1000);
-               }
-           }, 200);
+            if (!ref.current.isDelivering) {
+                ref.current.isDelivering = true;
+                console.log("[DEBUG] AT DELIVERY PAD! Emitting deliver in 150ms...");
+                setTimeout(() => {
+                    socket.emit('deliver');
+                    ref.current.isDelivering = false;
+                }, 150);
+            }
         }
     }
   });
@@ -735,14 +752,41 @@ function App() {
   // Функция getPrice больше не нужна, так как цены приходят с сервера
 
   useEffect(() => {
-    socket.on('playersUpdate', (data) => {
+    socket.on('joinSuccess', (p) => {
+        console.log('[SOCKET] Join success, setting local player state', p);
+        playersRef.current[socket.id] = p;
+        setPlayers(prev => ({...prev, [socket.id]: p}));
+    });
+    socket.on('initialNearbyPlayers', (data) => {
+        console.log('[SOCKET] Received regional players:', Object.keys(data).length);
         playersRef.current = data;
-        setPlayers(data);
+        setPlayers({...data});
+    });
+    socket.on('playerJoined', (p) => {
+        playersRef.current[p.id] = p;
+        setPlayers(prev => ({...prev, [p.id]: p}));
+    });
+    socket.on('playerUpdated', (p) => {
+        playersRef.current[p.id] = p;
+        setPlayers(prev => ({...prev, [p.id]: p}));
+    });
+    socket.on('playerLeft', (id) => {
+        delete playersRef.current[id];
+        setPlayers(prev => {
+            const next = {...prev};
+            delete next[id];
+            return next;
+        });
     });
     socket.on('playerMoved', (p) => {
         if (playersRef.current[p.id]) {
             playersRef.current[p.id].position = p.position;
             playersRef.current[p.id].rotation = p.rotation;
+        } else {
+            // Если мы получили движение игрока, которого у нас нет в стейте,
+            // значит сетка рассинхронизировалась, добавим его
+            playersRef.current[p.id] = p;
+            setPlayers(prev => ({...prev, [p.id]: p}));
         }
     });
     socket.on('cargoState', (data) => setDroppedCargos(data));
@@ -847,7 +891,7 @@ function App() {
     <>
       <Canvas camera={{ position: [0, 5, 10], fov: 60, far: 10000 }}>
         <World billboards={billboards} players={players} />
-        {inGame && <PlayerController players={playersRef.current} droppedCargos={droppedCargos} myPlayerState={me} billboards={billboards} adminKey={adminKey} />}
+        {inGame && <PlayerController players={playersRef.current} setPlayers={setPlayers} playersRef={playersRef} droppedCargos={droppedCargos} myPlayerState={me} billboards={billboards} adminKey={adminKey} />}
         {inGame && <OtherPlayers players={players} playersRef={playersRef} />}
         {inGame && droppedCargos.map(item => <CargoBox key={item.id} item={item} />)}
       </Canvas>
