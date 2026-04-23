@@ -5,8 +5,14 @@ import { io } from 'socket.io-client';
 import * as THREE from 'three';
 import { KASPI_QR_BASE64 } from './KaspiQR';
 
-const SOCKET_URL = window.location.hostname === 'localhost' ? 'http://localhost:3001' : window.location.origin.replace(':3000', ':3001');
-const socket = io(SOCKET_URL);
+// Используем переменную окружения для URL сервера, либо авто-определение для локальной разработки
+const SOCKET_URL = process.env.REACT_APP_SERVER_URL || 
+  (window.location.hostname === 'localhost' ? 'http://localhost:3001' : 'https://api.cryptomarket.kz');
+const socket = io(SOCKET_URL, {
+  transports: ['websocket'], // Рекомендуется для стабильности в продакшене
+  reconnection: true,
+  reconnectionAttempts: Infinity
+});
 
 const CARGO_TYPES = [
   'Solana Validator Node',

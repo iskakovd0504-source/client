@@ -8,7 +8,28 @@ const Database = require('better-sqlite3');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+
+// --- CORS CONFIGURATION ---
+const ALLOWED_ORIGINS = [
+  'https://cryptomarket.kz',
+  'https://www.cryptomarket.kz',
+  'http://localhost:3000'
+];
+
+const io = new Server(server, {
+  cors: {
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl)
+      if (!origin) return callback(null, true);
+      if (ALLOWED_ORIGINS.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: ["GET", "POST"]
+  }
+});
 
 // --- DATABASE INITIALIZATION ---
 const DB_PATH = './game.db';
@@ -565,6 +586,10 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = 3001;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`[SERVER] Running on port ${PORT}`);
+    console.log(`[SERVER] Database: ${DB_PATH}`);
+    console.log(`[SERVER] Node Environment: ${process.env.NODE_ENV || 'development'}`);
+});
 
