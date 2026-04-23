@@ -82,18 +82,7 @@ const DELIVERY_POINTS = [
 ];
 
 const LEVEL_OBSTACLES = []; // Пустошь теперь пуста
-const MOCK_ADS = [
-  { text: 'AIPROTOCOL.KZ', color: '#00ffff' },
-  { text: 'BUY $SOL', color: '#14F195' },
-  { text: 'BINANCE KZ', color: '#FCD535' },
-  { text: 'ASTANA HUB', color: '#ff00ff' },
-  { text: 'TON FOUNDATION', color: '#0088cc' },
-  { text: 'YOUR AD\nHERE', color: '#eab308' },
-  { text: 'LONG $CMKZ', color: '#ff4444' }
-];
-
 // LEVEL_BILLBOARDS is now managed by the server for sync
-let LEVEL_BILLBOARDS = []; 
 
 
 const VoxelCar = ({ position, rotation, isPremium, isAdmin }) => {
@@ -126,7 +115,7 @@ const VoxelCar = ({ position, rotation, isPremium, isAdmin }) => {
 };
 
 const PlayerController = ({ players, setPlayers, playersRef, droppedCargos, myPlayerState, billboards, adminKey }) => {
-  const { camera } = useThree();
+  useThree(); // Ensure hooks are called
   const ref = useRef({
     position: new THREE.Vector3(0, 0, 200),
     velocity: 0,
@@ -140,7 +129,6 @@ const PlayerController = ({ players, setPlayers, playersRef, droppedCargos, myPl
   const [keys, setKeys] = useState({});
   const lasersRef = useRef([]);
   const lastShotTimeRef = useRef(0);
-  const [laserCounter, setLaserCounter] = useState(0);
 
   useEffect(() => {
     const handleShoot = () => {
@@ -160,7 +148,6 @@ const PlayerController = ({ players, setPlayers, playersRef, droppedCargos, myPl
         meshRef: React.createRef()
       };
       lasersRef.current.push(newLaser);
-      setLaserCounter(c => c + 1);
     };
 
     const handleRespawn = (data) => {
@@ -173,9 +160,8 @@ const PlayerController = ({ players, setPlayers, playersRef, droppedCargos, myPl
         r.targetVelocity = 0;
         
         // Очищаем соседей, но сохраняем СВОИ обновленные данные
-        setPlayers(prev => {
-            const me = prev[socket.id] || {};
-            const updatedMe = { ...me, position: data.position, cargo: data.cargo };
+        setPlayers(() => {
+            const updatedMe = { position: data.position, cargo: data.cargo };
             playersRef.current = { [socket.id]: updatedMe };
             return { [socket.id]: updatedMe };
         });
@@ -196,11 +182,12 @@ const PlayerController = ({ players, setPlayers, playersRef, droppedCargos, myPl
     window.addEventListener('mousedown', handleMouseShoot);
 
     return () => {
+      socket.off('authoritativeRespawn', handleRespawn);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('mousedown', handleMouseShoot);
     };
-  }, []);
+  }, [playersRef, setPlayers]);
 
   useFrame((state, delta) => {
     const r = ref.current;
@@ -873,7 +860,6 @@ function App() {
     return () => clearInterval(interval);
   }, [billboards]); // Update interval if billboards change
 
-  const [walletAddress, setWalletAddress] = useState(null);
 
 
   const handleJoin = () => {
