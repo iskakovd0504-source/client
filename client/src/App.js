@@ -9,10 +9,61 @@ import { KASPI_QR_BASE64 } from './KaspiQR';
 const SOCKET_URL = process.env.REACT_APP_SERVER_URL || 
   (window.location.hostname === 'localhost' ? 'http://localhost:3001' : 'https://api.cryptomarket.kz');
 const socket = io(SOCKET_URL, {
-  transports: ['websocket'], // Рекомендуется для стабильности в продакшене
+  transports: ['websocket'],
   reconnection: true,
   reconnectionAttempts: Infinity
 });
+
+const MobileControls = () => {
+  const handleTouch = (code, isDown) => {
+    const event = new KeyboardEvent(isDown ? 'keydown' : 'keyup', { code });
+    window.dispatchEvent(event);
+  };
+
+  return (
+    <div className="mobile-controls-overlay">
+      {/* Левая часть: Джойстик/Стрелки */}
+      <div className="mobile-dpad">
+        <div className="dpad-row">
+          <button 
+            onTouchStart={() => handleTouch('KeyW', true)} 
+            onTouchEnd={() => handleTouch('KeyW', false)}
+            className="dpad-btn up"
+          >▲</button>
+        </div>
+        <div className="dpad-row">
+          <button 
+            onTouchStart={() => handleTouch('KeyA', true)} 
+            onTouchEnd={() => handleTouch('KeyA', false)}
+            className="dpad-btn left"
+          >◀</button>
+          <button 
+            onTouchStart={() => handleTouch('KeyS', true)} 
+            onTouchEnd={() => handleTouch('KeyS', false)}
+            className="dpad-btn down"
+          >▼</button>
+          <button 
+            onTouchStart={() => handleTouch('KeyD', true)} 
+            onTouchEnd={() => handleTouch('KeyD', false)}
+            className="dpad-btn right"
+          >▶</button>
+        </div>
+      </div>
+
+      {/* Правая часть: Действия */}
+      <div className="mobile-actions">
+        <button 
+          onTouchStart={() => handleTouch('Space', true)} 
+          onTouchEnd={() => handleTouch('Space', false)}
+          className="mobile-btn fire"
+        >
+          <div className="btn-label">SHOOT</div>
+          <div className="btn-icon">🔫</div>
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const CARGO_TYPES = [
   'Solana Validator Node',
@@ -718,6 +769,12 @@ function App() {
   const adminKeyRef = useRef(""); // Реф для актуального пароля в сокетах
   const [droppedCargos, setDroppedCargos] = useState([]);
 
+  const [isTouch, setIsTouch] = useState(false);
+
+  useEffect(() => {
+    setIsTouch('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  }, []);
+
   const [billboards, setBillboards] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [pendingPremiumRequests, setPendingPremiumRequests] = useState([]);
@@ -1217,6 +1274,8 @@ function App() {
                 {(pendingRequests.length + pendingPremiumRequests.length) > 0 && <span className="notification-badge">{pendingRequests.length + pendingPremiumRequests.length}</span>}
              </button>
           )}
+
+          {isTouch && <MobileControls />}
 
           <div className="hud-top-left interactive">
             <div className="hud-panel-mini" style={{ marginBottom: '10px' }}>
