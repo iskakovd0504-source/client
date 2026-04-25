@@ -951,20 +951,43 @@ function App() {
         </div>
       ) : (
         <div className="ui-layer">
-          {nearBb && !rentModal && (
-             <div className="ad-prompt interactive" style={{ position: 'absolute', bottom: '250px', right: '20px', zIndex: 100 }}>
-                <div className="hud-panel" style={{ textAlign: 'center', border: '2px solid #eab308' }}>
-                   <div style={{ fontSize: '10px', color: '#eab308', marginBottom: '5px' }}>AD SPACE FOUND</div>
+          {nearBb && !rentModal && (() => {
+            const isOccupied = nearBb.expiresAt && nearBb.expiresAt > Date.now();
+            const timeLeft = isOccupied ? nearBb.expiresAt - Date.now() : 0;
+            
+            const formatTime = (ms) => {
+              const days = Math.floor(ms / 86400000);
+              const hours = Math.floor((ms % 86400000) / 3600000);
+              const mins = Math.floor((ms % 3600000) / 60000);
+              if (days > 0) return `${days}d ${hours}h`;
+              if (hours > 0) return `${hours}h ${mins}m`;
+              return `${mins}m left`;
+            };
+
+            return (
+              <div className="ad-prompt interactive" style={{ position: 'absolute', bottom: '250px', right: '20px', zIndex: 100 }}>
+                <div className="hud-panel" style={{ textAlign: 'center', border: `2px solid ${isOccupied ? '#ff4444' : '#eab308'}` }}>
+                   <div style={{ fontSize: '10px', color: isOccupied ? '#ff4444' : '#eab308', marginBottom: '5px' }}>
+                     {isOccupied ? 'SPACE OCCUPIED' : 'AD SPACE FOUND'}
+                   </div>
                    <h4 style={{ margin: '5px 0' }}>SPACE #{nearBb.id}</h4>
-                   <button className="interactive" onClick={() => {
-                       setRentText(nearBb.text);
-                       setRentColor(nearBb.color || "#eab308");
-                       setRentDays(7); // Всегда сбрасываем на 7 дней при открытии
-                       setRentModal(true);
-                   }} style={{ padding: '8px 15px', background: '#eab308', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>RENT THIS BOARD</button>
+                   
+                   {isOccupied ? (
+                     <div style={{ padding: '8px 15px', background: 'rgba(255, 68, 68, 0.2)', border: '1px solid #ff4444', borderRadius: '4px', fontSize: '12px', color: '#ff4444', fontWeight: 'bold' }}>
+                       ⏱️ {formatTime(timeLeft)}
+                     </div>
+                   ) : (
+                     <button className="interactive" onClick={() => {
+                         setRentText(nearBb.text);
+                         setRentColor(nearBb.color || "#eab308");
+                         setRentDays(7);
+                         setRentModal(true);
+                     }} style={{ padding: '8px 15px', background: '#eab308', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>RENT THIS BOARD</button>
+                   )}
                 </div>
-             </div>
-          )}
+              </div>
+            );
+          })()}
 
           {rentModal && nearBb && (
              <div className="modal-overlay interactive">

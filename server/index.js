@@ -540,6 +540,13 @@ io.on('connection', (socket) => {
 
   socket.on('updateBillboard', (data) => {
     if (!checkRateLimit(socket.id, 'rent', 5000)) return;
+    
+    // SERVER-SIDE ANTI-SPAM: Check if already rented
+    const bb = billboards.find(b => Number(b.id) === Number(data.id));
+    if (bb && bb.expiresAt && Date.now() < bb.expiresAt) {
+        socket.emit('gameNotification', { message: '⛔ This billboard is already rented!', type: 'error' });
+        return;
+    }
     const cleanText = (data.text || "").trim().replace(/[^a-zA-Z0-9_А-яЁё .!\-]/g, '');
     const req = { 
         requestId: Date.now() + Math.random(), 
