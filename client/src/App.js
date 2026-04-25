@@ -298,13 +298,15 @@ const PlayerController = ({ players, setPlayers, playersRef, droppedCargos, myPl
     const isMoving = Math.abs(r.velocity) > 0.01;
     
     if (isMoving) {
-       const turnRate = 0.05 * (Math.abs(r.velocity) / 0.375); 
-       const clampedTurnRate = Math.min(Math.max(turnRate, 0.02), 0.06); 
+       // Уменьшили базовую скорость поворота для плавности
+       const turnRate = 0.035 * (Math.abs(r.velocity) / 0.375); 
+       const clampedTurnRate = Math.min(Math.max(turnRate, 0.015), 0.04); 
        if (keys['ArrowLeft'] || keys['KeyA']) r.targetYaw += isMovingForward ? clampedTurnRate : -clampedTurnRate;
        if (keys['ArrowRight'] || keys['KeyD']) r.targetYaw -= isMovingForward ? clampedTurnRate : -clampedTurnRate;
     }
 
-    r.yaw += (r.targetYaw - r.yaw) * 0.3;
+    // Снизили коэффициент с 0.3 до 0.12 для "тяжести" и плавности носа машины
+    r.yaw += (r.targetYaw - r.yaw) * 0.12;
     const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, r.yaw, 0, 'YXZ'));
     const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
     const moveStep = r.velocity * (delta * 60);
