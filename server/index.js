@@ -436,13 +436,26 @@ io.on('connection', (socket) => {
     if (target.nickname === 'Admin') return;
     
     const dist = Math.hypot(shooter.position[0] - target.position[0], shooter.position[2] - target.position[2]);
-    if (dist < 400 && target.cargo && target.cargo.length > 0) {
+    // Увеличили дистанцию до 1500, так как лазеры дальнобойные
+    if (dist < 1500 && target.cargo && target.cargo.length > 0) {
       const droppedItem = target.cargo.pop();
-      const drop = { id: Date.now() + Math.random(), x: target.position[0], z: target.position[2], type: droppedItem, timestamp: Date.now() };
+      // Создаем объект выпавшего груза
+      const drop = { 
+        id: Date.now() + Math.random(), 
+        x: target.position[0] + (Math.random() - 0.5) * 10, 
+        z: target.position[2] + (Math.random() - 0.5) * 10, 
+        type: droppedItem, 
+        timestamp: Date.now() 
+      };
       droppedCargos.push(drop);
       io.emit('cargoDropped', drop); 
+      
+      // Уведомляем всех соседей, что у игрока обновился статус (минус посылка)
       const rooms = getNearbyCells(target.cell);
       io.to(rooms).emit('playerUpdated', target);
+      
+      // Можно отправить уведомление пострадавшему
+      io.to(targetId).emit('gameNotification', { message: '📦 CARGO LOST!', type: 'error' });
     }
   });
 
