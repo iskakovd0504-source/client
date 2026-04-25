@@ -458,10 +458,21 @@ body {
   border-radius: 20px;
   width: 90%;
   max-width: 420px;
+  max-height: 90vh; /* Ограничиваем высоту */
+  overflow-y: auto; /* Добавляем скролл */
   border: 1px solid #eab308;
   box-shadow: 0 0 50px rgba(234, 179, 8, 0.2);
   display: flex;
   flex-direction: column;
+}
+
+/* Стилизация скроллбара для красоты */
+.rent-modal::-webkit-scrollbar {
+  width: 6px;
+}
+.rent-modal::-webkit-scrollbar-thumb {
+  background: #eab308;
+  border-radius: 10px;
 }
 
 .rent-modal-content {
@@ -959,7 +970,27 @@ body {
   }
 }
 
-.login-card {
+  login-card {
   max-width: 90%;
   min-width: 320px;
+}
+
+/* Фиксы для модалок в горизонтальном режиме */
+@media (max-height: 550px) {
+  .rent-modal {
+    padding: 15px;
+  }
+  .rent-modal h2 {
+    font-size: 16px;
+    margin-bottom: 10px;
+  }
+  .kaspi-payment {
+    padding: 10px;
+  }
+  .qr-box img {
+    width: 120px !important;
+  }
+  .modal-actions {
+    margin-top: 15px;
+  }
 }
