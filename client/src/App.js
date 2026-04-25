@@ -808,6 +808,7 @@ function App() {
   const nicknameRef = useRef(""); // Реф для актуального ника в сокетах
   const adminKeyRef = useRef(""); // Реф для актуального пароля в сокетах
   const [droppedCargos, setDroppedCargos] = useState([]);
+  const [totalUnits, setTotalUnits] = useState(0);
 
   const [isTouch, setIsTouch] = useState(false);
 
@@ -907,6 +908,10 @@ function App() {
         setAccessIdToSave(data.accessId);
         setShowRegModal(true);
     });
+    socket.on('globalStats', (data) => {
+        console.log('[SOCKET] Global Stats:', data.totalUnits);
+        setTotalUnits(data.totalUnits);
+    });
 
     // Авто-реконнект: теперь берем данные из REFS, которые всегда актуальны
     socket.on('connect', () => {
@@ -992,7 +997,7 @@ function App() {
           <div className="login-card">
             <div className="status-badge">
               <span className="pulse-dot"></span> 
-              NETWORK ACTIVE: {Object.keys(players).length} PILOTS ONLINE
+              NETWORK ACTIVE: {totalUnits || Object.keys(players).length} PILOTS ONLINE
             </div>
             <h1>CRYPTOMARKET.KZ</h1>
             <div className="subtitle">Decentralized Asset Distribution Protocol</div>

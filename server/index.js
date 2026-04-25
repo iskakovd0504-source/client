@@ -247,18 +247,25 @@ setInterval(checkExpirations, 60000);
 
 
 // Bots Init
-for (let i = 1; i <= 4; i++) {
+const BOT_COUNT = 12;
+for (let i = 1; i <= BOT_COUNT; i++) {
   const botId = 'bot_' + i;
   players[botId] = {
-    id: botId, nickname: 'CargoBot ' + i, position: [(Math.random() - 0.5) * 400, 0, 100 - i * 150],
-    rotation: [0, 0, 0], points: 15 * i, cargo: getRandomCargo()
+    id: botId, 
+    nickname: 'CargoBot ' + i, 
+    position: [(Math.random() - 0.5) * 2000, 0, (Math.random() * 3000) - 1500],
+    rotation: [0, 0, 0], 
+    points: 15 * i, 
+    cargo: getRandomCargo(),
+    isAdmin: false,
+    isPremium: false
   };
   updatePlayerGrid(botId, players[botId].position);
 }
 
 // Оптимизированный цикл ботов (теперь через Grid)
 setInterval(() => {
-  for (let i = 1; i <= 4; i++) {
+  for (let i = 1; i <= BOT_COUNT; i++) {
     const botId = 'bot_' + i;
     const bot = players[botId];
     if (!bot) continue;
@@ -278,7 +285,8 @@ setInterval(() => {
       }
       
       if (bot.position[2] < -3200) {
-        bot.position[2] = 200; bot.position[0] = (Math.random() - 0.5) * 400;
+        bot.position[2] = 200 + (Math.random() * 300); 
+        bot.position[0] = (Math.random() - 0.5) * 2000;
         bot.cargo = getRandomCargo();
         bot.points += 15;
         updatePlayerGrid(botId, bot.position);
@@ -286,7 +294,7 @@ setInterval(() => {
       }
     } else {
       // КЕЙС: Бота подбили и он пустой. Респавним его на старт!
-      bot.position = [(Math.random() - 0.5) * 400, 0, 200];
+      bot.position = [(Math.random() - 0.5) * 2000, 0, 200 + (Math.random() * 200)];
       bot.cargo = getRandomCargo();
       updatePlayerGrid(botId, bot.position);
       const rooms = getNearbyCells(bot.cell);
@@ -302,11 +310,19 @@ setInterval(() => {
 
 const ADMIN_KEY = process.env.ADMIN_KEY;
 
+function broadcastStats() {
+    const totalUnits = Object.keys(players).length;
+    io.emit('globalStats', { totalUnits });
+}
+setInterval(broadcastStats, 10000); // Раз в 10 секунд
+
 let pendingRequests = []; 
 let pendingPremiumRequests = []; 
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
+  broadcastStats(); // Отправляем статистику сразу при подключении
+  
   players[socket.id] = { id: socket.id, nickname: 'Anon', position: [0, 0, 200], rotation: [0, 0, 0], points: 0, cargo: null, isPremium: false, isAdmin: false };
   updatePlayerGrid(socket.id, [0, 0, 200]);
 
