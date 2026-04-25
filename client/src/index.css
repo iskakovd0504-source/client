@@ -897,22 +897,79 @@ body {
   font-size: 28px;
 }
 
-/* Адаптация под маленькие экраны */
-@media (max-height: 500px) {
+/* Адаптация под маленькие экраны (Телефоны в Landscape) */
+@media (max-width: 920px) {
+  .hud-top-left {
+    top: 10px;
+    left: 10px;
+    gap: 5px;
+    transform: scale(0.85);
+    transform-origin: top left;
+  }
+  
+  .hud-top-right {
+    top: 10px;
+    right: 10px;
+    transform: scale(0.8);
+    transform-origin: top right;
+  }
+
+  .leaderboard {
+    min-width: 150px;
+    padding: 10px;
+  }
+
   .joystick-container {
-    width: 120px;
-    height: 120px;
+    width: 110px;
+    height: 110px;
+    margin-left: 5px;
+    margin-bottom: 5px;
   }
   .joystick-base {
-    width: 100px;
-    height: 100px;
+    width: 90px;
+    height: 90px;
   }
   .joystick-handle {
-    width: 45px;
-    height: 45px;
+    width: 40px;
+    height: 40px;
   }
+
   .mobile-actions {
-    bottom: 160px;
-    right: 20px;
+    bottom: 260px; /* Еще выше, чтобы не мешать карте Genesis */
+    right: 25px;
+  }
+
+  .mobile-btn.fire {
+    width: 85px;
+    height: 85px;
+  }
+
+  .premium-card {
+    width: 170px;
+    padding: 10px;
+    bottom: 10px;
+    right: 10px;
+    transform: scale(0.9);
+    transform-origin: bottom right;
+  }
+
+  .premium-card p {
+    font-size: 9px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .ad-prompt {
+    right: 200px !important; /* Сдвигаем левее, чтобы не перекрывать лидерборд */
+    bottom: 20px !important;
+    transform: scale(0.9);
+  }
+}
+
+@media (max-height: 500px) {
+  .mobile-controls-overlay {
+    padding: 10px;
   }
 }
