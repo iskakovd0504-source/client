@@ -380,6 +380,7 @@ io.on('connection', (socket) => {
         if (distToStart < 300) {
             p.cargo = getRandomCargo();
             broadcastToNearby(socket, 'playerUpdated', p);
+            socket.emit('gameNotification', { message: '🛰️ NEW CARGO RECEIVED', type: 'info' });
         }
     }
   });
@@ -461,18 +462,19 @@ io.on('connection', (socket) => {
 
   socket.on('pickup', (cargoId) => {
     if (!checkRateLimit(socket.id, 'pickup', 1000)) return;
-    const idx = droppedCargos.findIndex(c => c.id === cargoId);
+    const idx = droppedCargos.findIndex(c => Number(c.id) === Number(cargoId));
     if (idx !== -1) {
       const cargo = droppedCargos[idx];
       const p = players[socket.id];
       const dist = Math.hypot(p.position[0] - cargo.x, p.position[2] - cargo.z);
-      if (dist < 40) {
+      if (dist < 60) { // Увеличили радиус подбора для стабильности
           if (!p.cargo) p.cargo = [];
           p.cargo.push(cargo.type);
           droppedCargos.splice(idx, 1);
           io.emit('cargoPicked', cargoId);
           const rooms = getNearbyCells(p.cell);
           io.to(rooms).emit('playerUpdated', p);
+          socket.emit('gameNotification', { message: '📦 CARGO PICKED UP!', type: 'success' });
       }
     }
   });
