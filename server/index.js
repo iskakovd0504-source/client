@@ -235,7 +235,7 @@ const checkExpirations = () => {
             const neonColors = ['#eab308', '#14F195', '#ff00ff', '#00ffff', '#ff4500'];
             b.color = neonColors[b.id % neonColors.length];
             updateBillboardInDB(b);
-            io.emit('billboardUpdate', { ...b, rotY: b.rot }); // Отправляем только обновление одного билборда
+            io.emit('billboardUpdate', b); // Теперь данные передаются как в БД (x, z, rotY)
         }
     });
 };
@@ -379,7 +379,7 @@ io.on('connection', (socket) => {
         const distToStart = Math.hypot(p.position[0] - 0, p.position[2] - 50);
         if (distToStart < 300) {
             p.cargo = getRandomCargo();
-            broadcastToNearby(socket.id, 'playerUpdated', p);
+            broadcastToNearby(socket, 'playerUpdated', p);
         }
     }
   });
@@ -563,7 +563,7 @@ io.on('connection', (socket) => {
         const updated = { ...billboards[bbIdx], text: req.text, color: req.color, expiresAt: Date.now() + req.days * 86400000 };
         billboards[bbIdx] = updated;
         updateBillboardInDB(updated);
-        io.emit('billboardUpdate', { ...updated, rotY: updated.rot });
+        io.emit('billboardUpdate', updated);
       }
       pendingRequests.splice(idx, 1); io.emit('pendingState', pendingRequests);
     }
@@ -576,7 +576,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => { 
-      broadcastToNearby(socket.id, 'playerLeft', socket.id);
+      broadcastToNearby(socket, 'playerLeft', socket.id);
       const p = players[socket.id];
       if (p && p.cell && grid[p.cell]) {
           grid[p.cell].delete(socket.id);

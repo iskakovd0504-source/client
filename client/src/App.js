@@ -307,9 +307,7 @@ const PlayerController = ({ players, setPlayers, playersRef, droppedCargos, myPl
        if ((!myPlayerState.cargo || myPlayerState.cargo.length === 0) && r.position.z > 0 && r.position.z < 300) {
             if (!r.isRestocking) {
                 r.isRestocking = true; 
-                const newCargo = CARGO_TYPES[Math.floor(Math.random() * CARGO_TYPES.length)];
-                const deviceId = localStorage.getItem('cmkz_device_id');
-                socket.emit('join', { nickname: myPlayerState.nickname, cargo: [newCargo], deviceId, password: adminKey });
+                socket.emit('restockCargo');
                 setTimeout(() => { r.isRestocking = false; }, 1000);
             }
        }
