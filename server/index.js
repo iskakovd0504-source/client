@@ -117,8 +117,12 @@ if (billboards.length < 101) {
             insertBB.run(i, x, z, Math.random() * Math.PI * 2, `AD SPACE #${i}`, color, type, null, prices);
         }
     })();
-    billboards = loadBillboards.all().map(b => ({ ...b, prices: JSON.parse(b.prices || '{}') }));
 }
+
+// FORCE RESET RENTED BILLBOARDS (User request before launch)
+console.log("[DB] Resetting all billboards for launch...");
+db.exec("UPDATE billboards SET text = 'AD SPACE #' || id, expiresAt = NULL");
+billboards = loadBillboards.all().map(b => ({ ...b, prices: JSON.parse(b.prices || '{}') }));
 
 function updateBillboardInDB(bb) {
     const stmt = db.prepare('UPDATE billboards SET text = ?, color = ?, expiresAt = ? WHERE id = ?');
@@ -303,7 +307,7 @@ let pendingPremiumRequests = [];
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
-  players[socket.id] = { id: socket.id, nickname: 'Anon', position: [0, 0, 200], rotation: [0, 0, 0], points: 0, cargo: null, isPremium: false };
+  players[socket.id] = { id: socket.id, nickname: 'Anon', position: [0, 0, 200], rotation: [0, 0, 0], points: 0, cargo: null, isPremium: false, isAdmin: false };
   updatePlayerGrid(socket.id, [0, 0, 200]);
 
   socket.on('join', (data) => {
@@ -319,10 +323,15 @@ io.on('connection', (socket) => {
     const hashedSecret = crypto.createHash('sha256').update(secretInput).digest('hex');
     
     const isAdminNick = normalizedNick.includes('admin') || normalizedNick.includes('админ');
+    let authenticatedAsAdmin = false;
     
-    if (isAdminNick && data.password !== ADMIN_KEY) {
-        socket.emit('gameNotification', { message: '⛔ Admin access restricted!', type: 'error' });
-        return;
+    if (isAdminNick) {
+        if (data.password === ADMIN_KEY && ADMIN_KEY) {
+            authenticatedAsAdmin = true;
+        } else {
+            socket.emit('gameNotification', { message: '⛔ Admin access restricted!', type: 'error' });
+            return;
+        }
     }
 
     const getUser = db.prepare('SELECT * FROM users WHERE nickname = ?');
@@ -347,6 +356,7 @@ io.on('connection', (socket) => {
     p.nickname = finalNickname;
     if (!p.cargo) p.cargo = getRandomCargo();
     p.deviceId = deviceId;
+    p.isAdmin = authenticatedAsAdmin;
     p.ignoreNextMove = true; 
 
     socket.emit('joinSuccess', p);
@@ -388,7 +398,16 @@ io.on('connection', (socket) => {
   socket.on('move', (data) => {
     const p = players[socket.id];
     if (p) {
-      if (!Array.isArray(data.position) || data.position.length < 3) return;
+      if (!data || !Array.isArray(data.position) || data.position.length < 3) return;
+      
+      // MOVE RATE LIMIT (Max 60Hz)
+      if (!checkRateLimit(socket.id, 'move_freq', 16)) return;
+
+      // VALIDATE COORDINATES (Anti-Crash)
+      if (typeof data.position[0] !== 'number' || typeof data.position[2] !== 'number' || isNaN(data.position[0]) || isNaN(data.position[2])) {
+          return;
+      }
+
       data.position[1] = 0; // ПРИЗЕМЛЯЕМ ЧИТЕРА: Запрещаем полет по оси Y
       
       // АНТИ-ТЕЛЕПОРТ ПРОВЕРКА
@@ -398,7 +417,7 @@ io.on('connection', (socket) => {
       
       if (p.ignoreNextMove) {
           p.ignoreNextMove = false; // Сбрасываем флаг и разрешаем это движение
-      } else if (distSq > 500*500 && p.nickname !== 'Admin') {
+      } else if (distSq > 600*600 && !p.isAdmin) {
           console.log(`[SECURITY] Teleport detected for ${p.nickname}. Blocking.`);
           socket.emit('authoritativeRespawn', { position: p.position, cargo: p.cargo });
           return;
@@ -434,7 +453,7 @@ io.on('connection', (socket) => {
     const target = players[targetId];
     const shooter = players[socket.id];
     if (!target || !shooter) return;
-    if (target.nickname === 'Admin') return;
+    if (target.isAdmin) return;
     
     const dist = Math.hypot(shooter.position[0] - target.position[0], shooter.position[2] - target.position[2]);
     // Увеличили дистанцию до 1500, так как лазеры дальнобойные
@@ -492,7 +511,7 @@ io.on('connection', (socket) => {
           }
       }
 
-      if (!onPad && p.nickname !== 'Admin') return; 
+      if (!onPad && !p.isAdmin) return; 
 
       const multiplier = p.isPremium ? 30 : 15;
       const cargoCount = p.cargo.length;
@@ -529,7 +548,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('adminApprovePremium', (requestId) => {
-    if (players[socket.id]?.nickname?.toLowerCase() !== 'admin') return;
+    const admin = players[socket.id];
+    if (!admin || !admin.isAdmin) return;
     const idx = pendingPremiumRequests.findIndex(r => r.requestId === requestId);
     if (idx !== -1) {
       const req = pendingPremiumRequests[idx];
@@ -548,7 +568,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('adminRejectPremium', (requestId) => {
-    if (players[socket.id]?.nickname?.toLowerCase() !== 'admin') return;
+    const admin = players[socket.id];
+    if (!admin || !admin.isAdmin) return;
     pendingPremiumRequests = pendingPremiumRequests.filter(r => r.requestId !== requestId);
     io.emit('pendingPremiumState', pendingPremiumRequests);
   });
@@ -576,7 +597,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('adminApprove', (requestId) => {
-    if (players[socket.id]?.nickname?.toLowerCase() !== 'admin') return;
+    const admin = players[socket.id];
+    if (!admin || !admin.isAdmin) return;
     const idx = pendingRequests.findIndex(r => r.requestId === requestId);
     if (idx !== -1) {
       const req = pendingRequests[idx];
@@ -592,7 +614,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('adminReject', (requestId) => {
-    if (players[socket.id]?.nickname?.toLowerCase() !== 'admin') return;
+    const admin = players[socket.id];
+    if (!admin || !admin.isAdmin) return;
     pendingRequests = pendingRequests.filter(r => r.requestId !== requestId);
     io.emit('pendingState', pendingRequests);
   });

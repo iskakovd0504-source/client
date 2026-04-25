@@ -280,7 +280,7 @@ const PlayerController = ({ players, setPlayers, playersRef, droppedCargos, myPl
 
   useFrame((state, delta) => {
     const r = ref.current;
-    const isLocalAdmin = myPlayerState?.nickname === 'Admin';
+    const isLocalAdmin = myPlayerState?.isAdmin;
     const isPremium = myPlayerState?.isPremium;
     
     // Множитель скорости: Admin = 4x, Premium = 2x, Обычный = 1x
@@ -366,7 +366,7 @@ const PlayerController = ({ players, setPlayers, playersRef, droppedCargos, myPl
             if (!target.cargo || !target.position) continue; 
             const dist = l.position.distanceTo(new THREE.Vector3(target.position[0], target.position[1], target.position[2]));
             if (dist < 25.0) { 
-               if (target.nickname === 'Admin') continue;
+               if (target.isAdmin) continue;
                socket.emit('hit', pid); 
                hitInfo = true;
                l.life = 0;
@@ -433,7 +433,7 @@ const PlayerController = ({ players, setPlayers, playersRef, droppedCargos, myPl
   return (
     <>
       <group ref={carMeshRef} position={[0, 0, 200]}>
-        <VoxelCar position={[0, 0, 0]} rotation={[0, 0, 0]} isPremium={myPlayerState?.isPremium} isAdmin={myPlayerState?.nickname === 'Admin'} />
+        <VoxelCar position={[0, 0, 0]} rotation={[0, 0, 0]} isPremium={myPlayerState?.isPremium} isAdmin={myPlayerState?.isAdmin} />
       </group>
       {lasersRef.current.map(l => (
         <mesh key={l.id} ref={l.meshRef} position={l.position}>
@@ -701,9 +701,9 @@ const OtherPlayers = ({ players, playersRef }) => {
             ref={el => meshRefs.current[p.id] = el}
             position={p.position}
           >
-            <VoxelCar position={[0,0,0]} rotation={[0,0,0]} isPremium={p.isPremium} isAdmin={p.nickname === 'Admin'} />
-            <Text position={[0, 4, 0]} fontSize={2} color={p.nickname === 'Admin' ? "#00ffff" : "white"} anchorX="center" anchorY="middle" fontStyle={p.nickname === 'Admin' ? 'italic' : 'normal'}>
-              {p.nickname === 'Admin' ? '⚡ Administrator' : (typeof p.nickname === 'string' ? p.nickname : (p.nickname && p.nickname.nickname ? p.nickname.nickname : 'Pilot'))} {p.cargo && p.cargo.length > 0 ? `📦x${p.cargo.length}` : ''}
+            <VoxelCar position={[0,0,0]} rotation={[0,0,0]} isPremium={p.isPremium} isAdmin={p.isAdmin} />
+            <Text position={[0, 4, 0]} fontSize={2} color={p.isAdmin ? "#00ffff" : "white"} anchorX="center" anchorY="middle" fontStyle={p.isAdmin ? 'italic' : 'normal'}>
+              {p.isAdmin ? '⚡ Administrator' : (typeof p.nickname === 'string' ? p.nickname : (p.nickname && p.nickname.nickname ? p.nickname.nickname : 'Pilot'))} {p.cargo && p.cargo.length > 0 ? `📦x${p.cargo.length}` : ''}
             </Text>
           </group>
         );
@@ -972,7 +972,7 @@ function App() {
 
   const sortedPlayers = Object.values(players).sort((a,b) => b.points - a.points).slice(0, 3);
   const me = players[socket.id];
-  const isAdmin = me?.nickname === 'Admin';
+  const isAdmin = me?.isAdmin;
 
   return (
     <>
