@@ -989,25 +989,6 @@ function App() {
 
       {!inGame ? (
         <div className="login-screen interactive">
-          {showRegModal && (
-            <div className="modal-overlay">
-               <div className="rent-modal">
-                  <h2>✅ PILOT REGISTERED</h2>
-                  <p>For your security, your Access ID is hidden. Copy and save it to login from other devices:</p>
-                  <button 
-                    className="confirm" 
-                    style={{ marginBottom: '10px' }}
-                    onClick={() => {
-                        navigator.clipboard.writeText(accessIdToSave);
-                        showNotification('Access ID copied to clipboard!', 'success');
-                    }}
-                  >
-                    📋 COPY ACCESS ID
-                  </button>
-                  <button className="cancel" onClick={() => setShowRegModal(false)}>I HAVE SAVED IT</button>
-               </div>
-            </div>
-          )}
           <div className="login-card">
             <div className="status-badge">
               <span className="pulse-dot"></span> 
@@ -1200,7 +1181,7 @@ function App() {
                     <div className="premium-tag" style={{ margin: '0 auto 15px', display: 'block', width: 'fit-content' }}>UPGRADE TO GENESIS</div>
                     <h2>ACTIVATE GENESIS STATUS</h2>
                     <div className="rent-modal-content">
-                        <p>Get exclusive gold Cybertruck styling and <b>x2 permanent multiplier</b> for all deliveries.</p>
+                        <p>Get exclusive gold Cybertruck styling, <b>x2 Driving Speed</b> and <b>x2 permanent multiplier</b> for all deliveries.</p>
                         
                         <div className="input-group" style={{ background: 'rgba(234, 179, 8, 0.05)', padding: '20px', borderRadius: '15px', border: '2px solid #eab308', marginBottom: '20px', textAlign: 'center' }}>
                             <div style={{ color: '#eab308', fontSize: '12px', fontWeight: '900', marginBottom: '5px' }}>ONE-TIME PAYMENT:</div>
@@ -1388,6 +1369,30 @@ function App() {
                {gameNotification.msg}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Модалка регистрации вынесена в самый корень для гарантии видимости */}
+      {showRegModal && (
+        <div className="modal-overlay interactive" style={{ zIndex: 10000 }}>
+            <div className="rent-modal">
+              <h2 style={{ color: '#14F195' }}>✅ PILOT REGISTERED</h2>
+              <p>Your Access ID is your private key. SAVE IT NOW to login from other devices:</p>
+              <div style={{ background: 'rgba(0,0,0,0.3)', padding: '15px', borderRadius: '8px', margin: '15px 0', border: '1px dashed #eab308', wordBreak: 'break-all', fontFamily: 'monospace', color: '#eab308', fontSize: '18px', textAlign: 'center', fontWeight: 'bold' }}>
+                {accessIdToSave}
+              </div>
+              <button 
+                className="confirm" 
+                style={{ marginBottom: '10px' }}
+                onClick={() => {
+                    navigator.clipboard.writeText(accessIdToSave);
+                    showNotification('Access ID copied to clipboard!', 'success');
+                }}
+              >
+                📋 COPY ACCESS ID
+              </button>
+              <button className="cancel" onClick={() => setShowRegModal(false)}>I HAVE SAVED IT</button>
+            </div>
         </div>
       )}
     </>
