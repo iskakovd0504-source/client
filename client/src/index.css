@@ -897,26 +897,72 @@ body {
   font-size: 28px;
 }
 
+/* Глобальный сброс для исключения "полосок" и рамок на мобилках */
+* {
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Адаптация под вертикальный режим (Portrait) */
+@media (max-width: 500px) {
+  .hud-top-left {
+    top: 10px;
+    left: 10px;
+    transform: scale(0.7);
+    transform-origin: top left;
+  }
+
+  .hud-top-right {
+    top: 10px;
+    right: 10px;
+    transform: scale(0.65);
+    transform-origin: top right;
+  }
+
+  .joystick-container {
+    width: 100px;
+    height: 100px;
+    bottom: 20px;
+    left: 10px;
+  }
+
+  .mobile-actions {
+    bottom: 180px;
+    right: 15px;
+    transform: scale(0.8);
+  }
+
+  .premium-card {
+    width: 160px;
+    bottom: 10px;
+    right: 10px;
+    transform: scale(0.85);
+    transform-origin: bottom right;
+    z-index: 50;
+  }
+
+  .ad-prompt {
+    right: 10px !important;
+    bottom: 320px !important; /* Поднимаем выше всего в портретном режиме */
+    transform: scale(0.8);
+  }
+}
+
 /* Адаптация под маленькие экраны (Телефоны в Landscape) */
-@media (max-width: 920px) {
+@media (min-width: 501px) and (max-width: 920px) {
   .hud-top-left {
     top: 10px;
     left: 10px;
     gap: 5px;
-    transform: scale(0.85);
+    transform: scale(0.8);
     transform-origin: top left;
   }
   
   .hud-top-right {
     top: 10px;
     right: 10px;
-    transform: scale(0.8);
+    transform: scale(0.75);
     transform-origin: top right;
-  }
-
-  .leaderboard {
-    min-width: 150px;
-    padding: 10px;
   }
 
   .joystick-container {
@@ -925,51 +971,29 @@ body {
     margin-left: 5px;
     margin-bottom: 5px;
   }
-  .joystick-base {
-    width: 90px;
-    height: 90px;
-  }
-  .joystick-handle {
-    width: 40px;
-    height: 40px;
-  }
 
   .mobile-actions {
-    bottom: 260px; /* Еще выше, чтобы не мешать карте Genesis */
-    right: 25px;
-  }
-
-  .mobile-btn.fire {
-    width: 85px;
-    height: 85px;
+    bottom: 240px; 
+    right: 20px;
+    transform: scale(0.9);
   }
 
   .premium-card {
     width: 170px;
-    padding: 10px;
     bottom: 10px;
     right: 10px;
-    transform: scale(0.9);
-    transform-origin: bottom right;
-  }
-
-  .premium-card p {
-    font-size: 9px;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    transform: scale(0.85);
   }
 
   .ad-prompt {
-    right: 200px !important; /* Сдвигаем левее, чтобы не перекрывать лидерборд */
-    bottom: 20px !important;
-    transform: scale(0.9);
+    right: 180px !important;
+    bottom: 15px !important;
+    transform: scale(0.85);
   }
 }
 
 @media (max-height: 500px) {
   .mobile-controls-overlay {
-    padding: 10px;
+    padding: 5px;
   }
 }

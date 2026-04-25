@@ -976,7 +976,11 @@ function App() {
 
   return (
     <>
-      <Canvas camera={{ position: [0, 5, 10], fov: 60, far: 10000 }}>
+      <Canvas 
+        gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+        shadows={!isTouch}
+        camera={{ position: [0, 5, 10], fov: 60, far: 10000 }}
+      >
         <World billboards={billboards} players={players} />
         {inGame && <PlayerController players={playersRef.current} setPlayers={setPlayers} playersRef={playersRef} droppedCargos={droppedCargos} myPlayerState={me} billboards={billboards} adminKey={adminKey} />}
         {inGame && <OtherPlayers players={players} playersRef={playersRef} />}
