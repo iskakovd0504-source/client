@@ -806,88 +806,113 @@ body {
   justify-content: space-between;
   align-items: flex-end;
   padding: 40px;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
 }
 
-.mobile-dpad, .mobile-actions {
+.joystick-container {
   pointer-events: auto;
+  width: 160px;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 20px;
+  margin-bottom: 20px;
+}
+
+.joystick-base {
+  width: 140px;
+  height: 140px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 30px rgba(0,0,0,0.3);
+}
+
+.joystick-handle {
+  width: 65px;
+  height: 65px;
+  background: rgba(234, 179, 8, 0.4);
+  border: 2px solid #eab308;
+  border-radius: 50%;
+  box-shadow: 0 0 20px rgba(234, 179, 8, 0.4);
+  transition: transform 0.05s ease-out;
+}
+
+.mobile-actions {
+  pointer-events: auto;
+  position: absolute;
+  right: 40px;
+  bottom: 220px; /* Подняли выше карточки Genesis */
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.dpad-row {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-}
-
-.dpad-btn, .mobile-btn {
+.mobile-btn {
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: white;
-  border-radius: 15px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
   cursor: pointer;
   user-select: none;
-  -webkit-tap-highlight-color: transparent;
   transition: all 0.1s;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
-.dpad-btn {
-  width: 70px;
-  height: 70px;
-}
-
-.dpad-btn:active {
-  background: rgba(234, 179, 8, 0.2);
-  border-color: #eab308;
-  transform: scale(0.95);
-  box-shadow: 0 0 20px rgba(234, 179, 8, 0.3);
-}
-
 .mobile-btn.fire {
-  width: 120px;
-  height: 120px;
+  width: 100px;
+  height: 100px;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   border-color: rgba(255, 68, 68, 0.3);
-  border-radius: 50%;
-  background: rgba(255, 68, 68, 0.05);
+  background: rgba(255, 68, 68, 0.1);
 }
 
 .mobile-btn.fire:active {
-  background: rgba(255, 68, 68, 0.2);
+  background: rgba(255, 68, 68, 0.3);
   border-color: #ff4444;
   transform: scale(0.9);
-  box-shadow: 0 0 30px rgba(255, 68, 68, 0.4);
+  box-shadow: 0 0 40px rgba(255, 68, 68, 0.5);
 }
 
 .btn-label {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 900;
   letter-spacing: 1px;
 }
 
 .btn-icon {
-  font-size: 32px;
+  font-size: 28px;
 }
 
 /* Адаптация под маленькие экраны */
 @media (max-height: 500px) {
-  .mobile-controls-overlay {
-    padding: 20px;
+  .joystick-container {
+    width: 120px;
+    height: 120px;
   }
-  .dpad-btn {
-    width: 60px;
-    height: 60px;
-  }
-  .mobile-btn.fire {
+  .joystick-base {
     width: 100px;
     height: 100px;
+  }
+  .joystick-handle {
+    width: 45px;
+    height: 45px;
+  }
+  .mobile-actions {
+    bottom: 160px;
+    right: 20px;
   }
 }

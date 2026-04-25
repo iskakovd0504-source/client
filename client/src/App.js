@@ -15,50 +15,88 @@ const socket = io(SOCKET_URL, {
 });
 
 const MobileControls = () => {
-  const handleTouch = (code, isDown) => {
-    const event = new KeyboardEvent(isDown ? 'keydown' : 'keyup', { code });
-    window.dispatchEvent(event);
+  const joystickRef = useRef(null);
+  const [joystickActive, setJoystickActive] = useState(false);
+  const [touchPos, setTouchPos] = useState({ x: 0, y: 0 });
+  const activeKeys = useRef(new Set());
+
+  const updateKey = (code, isDown) => {
+    if (isDown) {
+      if (!activeKeys.current.has(code)) {
+        activeKeys.current.add(code);
+        window.dispatchEvent(new KeyboardEvent('keydown', { code }));
+      }
+    } else {
+      if (activeKeys.current.has(code)) {
+        activeKeys.current.delete(code);
+        window.dispatchEvent(new KeyboardEvent('keyup', { code }));
+      }
+    }
+  };
+
+  const handleJoystick = (e) => {
+    if (!joystickActive) return;
+    const touch = e.touches[0];
+    const rect = joystickRef.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    let dx = touch.clientX - centerX;
+    let dy = touch.clientY - centerY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const maxDist = rect.width / 2;
+
+    if (dist > maxDist) {
+      dx *= maxDist / dist;
+      dy *= maxDist / dist;
+    }
+
+    setTouchPos({ x: dx, y: dy });
+
+    // Порог срабатывания (чувствительность)
+    const threshold = 15;
+    updateKey('KeyW', dy < -threshold);
+    updateKey('KeyS', dy > threshold);
+    updateKey('KeyA', dx < -threshold);
+    updateKey('KeyD', dx > threshold);
+  };
+
+  const resetJoystick = () => {
+    setJoystickActive(false);
+    setTouchPos({ x: 0, y: 0 });
+    ['KeyW', 'KeyS', 'KeyA', 'KeyD'].forEach(k => updateKey(k, false));
+  };
+
+  const handleFire = (isDown) => {
+    window.dispatchEvent(new KeyboardEvent(isDown ? 'keydown' : 'keyup', { code: 'Space' }));
   };
 
   return (
-    <div className="mobile-controls-overlay">
-      {/* Левая часть: Джойстик/Стрелки */}
-      <div className="mobile-dpad">
-        <div className="dpad-row">
-          <button 
-            onTouchStart={() => handleTouch('KeyW', true)} 
-            onTouchEnd={() => handleTouch('KeyW', false)}
-            className="dpad-btn up"
-          >▲</button>
-        </div>
-        <div className="dpad-row">
-          <button 
-            onTouchStart={() => handleTouch('KeyA', true)} 
-            onTouchEnd={() => handleTouch('KeyA', false)}
-            className="dpad-btn left"
-          >◀</button>
-          <button 
-            onTouchStart={() => handleTouch('KeyS', true)} 
-            onTouchEnd={() => handleTouch('KeyS', false)}
-            className="dpad-btn down"
-          >▼</button>
-          <button 
-            onTouchStart={() => handleTouch('KeyD', true)} 
-            onTouchEnd={() => handleTouch('KeyD', false)}
-            className="dpad-btn right"
-          >▶</button>
+    <div className="mobile-controls-overlay" onContextMenu={(e) => e.preventDefault()}>
+      <div 
+        className="joystick-container"
+        ref={joystickRef}
+        onTouchStart={() => setJoystickActive(true)}
+        onTouchMove={handleJoystick}
+        onTouchEnd={resetJoystick}
+        onTouchCancel={resetJoystick}
+      >
+        <div className="joystick-base">
+          <div 
+            className="joystick-handle" 
+            style={{ transform: `translate(${touchPos.x}px, ${touchPos.y}px)` }}
+          />
         </div>
       </div>
 
-      {/* Правая часть: Действия */}
       <div className="mobile-actions">
         <button 
-          onTouchStart={() => handleTouch('Space', true)} 
-          onTouchEnd={() => handleTouch('Space', false)}
+          onTouchStart={() => handleFire(true)} 
+          onTouchEnd={() => handleFire(false)}
           className="mobile-btn fire"
         >
-          <div className="btn-label">SHOOT</div>
           <div className="btn-icon">🔫</div>
+          <div className="btn-label">FIRE</div>
         </button>
       </div>
     </div>
@@ -1320,12 +1358,14 @@ function App() {
             </div>
           </div>
 
-          <div className="controls-tip">
-            <div><kbd>W</kbd> — Gas</div>
-            <div><kbd>S</kbd> — Brake / Reverse</div>
-            <div><kbd>A</kbd> <kbd>D</kbd> — Steer</div>
-            <div><kbd>Space</kbd> / <kbd>LMB</kbd> — Shoot Cargo-Stealer</div>
-          </div>
+          {!isTouch && (
+            <div className="controls-tip">
+              <div><kbd>W</kbd> — Gas</div>
+              <div><kbd>S</kbd> — Brake / Reverse</div>
+              <div><kbd>A</kbd> <kbd>D</kbd> — Steer</div>
+              <div><kbd>Space</kbd> / <kbd>LMB</kbd> — Shoot Cargo-Stealer</div>
+            </div>
+          )}
 
           <div className="premium-card">
             <div className="premium-tag">x2 Farm Boost</div>
