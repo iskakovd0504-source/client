@@ -247,13 +247,13 @@ setInterval(checkExpirations, 60000);
 
 
 // Bots Init
-const BOT_COUNT = 12;
+const BOT_COUNT = 25;
 for (let i = 1; i <= BOT_COUNT; i++) {
   const botId = 'bot_' + i;
   players[botId] = {
     id: botId, 
     nickname: 'CargoBot ' + i, 
-    position: [(Math.random() - 0.5) * 2000, 0, (Math.random() * 3000) - 1500],
+    position: [(Math.random() - 0.5) * 7000, 0, (Math.random() * 6000) - 3000],
     rotation: [0, 0, 0], 
     points: 15 * i, 
     cargo: getRandomCargo(),
@@ -270,7 +270,9 @@ setInterval(() => {
     const bot = players[botId];
     if (!bot) continue;
     if (bot.cargo && bot.cargo.length > 0) {
-      bot.position[2] -= 0.55; 
+      // Каждый бот имеет свою индивидуальную скорость для естественности
+      const botSpeed = 0.4 + (i % 5) * 0.1; 
+      bot.position[2] -= botSpeed; 
       bot.position[0] += Math.sin(Date.now() / (1000 + i*512)) * 0.4;
       bot.rotation[1] = Math.PI + Math.sin(Date.now() / (1000 + i*512)) * 0.1;
       
@@ -284,9 +286,9 @@ setInterval(() => {
           io.to(rooms).emit('playerMoved', bot);
       }
       
-      if (bot.position[2] < -3200) {
-        bot.position[2] = 200 + (Math.random() * 300); 
-        bot.position[0] = (Math.random() - 0.5) * 2000;
+      if (bot.position[2] < -3800) {
+        bot.position[2] = 400 + (Math.random() * 500); 
+        bot.position[0] = (Math.random() - 0.5) * 7000;
         bot.cargo = getRandomCargo();
         bot.points += 15;
         updatePlayerGrid(botId, bot.position);
@@ -294,7 +296,7 @@ setInterval(() => {
       }
     } else {
       // КЕЙС: Бота подбили и он пустой. Респавним его на старт!
-      bot.position = [(Math.random() - 0.5) * 2000, 0, 200 + (Math.random() * 200)];
+      bot.position = [(Math.random() - 0.5) * 7000, 0, 400 + (Math.random() * 300)];
       bot.cargo = getRandomCargo();
       updatePlayerGrid(botId, bot.position);
       const rooms = getNearbyCells(bot.cell);
