@@ -1322,30 +1322,38 @@ function App() {
           {isTouch && <MobileControls />}
 
           <div className="hud-top-left interactive">
-            <div className="hud-panel-mini" style={{ marginBottom: '10px' }}>
-               <button 
-                  className="interactive-btn" 
-                  onClick={() => {
-                      navigator.clipboard.writeText(localStorage.getItem('cmkz_device_id'));
-                      showNotification('Access ID copied to clipboard!', 'success');
-                  }}
-               >
-                  📋 COPY ACCESS ID
-               </button>
+            <div className="hud-main-row">
+              <AnimatedNumber 
+                value={me?.cargo?.length || 0} 
+                label="CARGO" 
+                icon="📦" 
+                color="#eab308" 
+              />
+              <AnimatedNumber 
+                value={Math.floor((me?.points || 0) / 15)} 
+                label="BALANCE" 
+                icon="💰" 
+                color="#14F195" 
+              />
+              {!me?.isPremium && (
+                <button className="genesis-trigger-btn" onClick={() => setPremiumModal(true)}>
+                  <span className="gen-icon">⚡</span>
+                  <span className="gen-text">GENESIS</span>
+                </button>
+              )}
             </div>
-            
-            <AnimatedNumber 
-              value={me?.cargo?.length || 0} 
-              label="CARGO" 
-              icon="📦" 
-              color="#eab308" 
-            />
-            <AnimatedNumber 
-              value={Math.floor((me?.points || 0) / 15)} 
-              label="BALANCE" 
-              icon="💰" 
-              color="#14F195" 
-            />
+
+            <div className="hud-actions-row">
+              <button 
+                className="copy-id-btn" 
+                onClick={() => {
+                    navigator.clipboard.writeText(localStorage.getItem('cmkz_device_id'));
+                    showNotification('Access ID copied to clipboard!', 'success');
+                }}
+              >
+                📋 ID: {localStorage.getItem('cmkz_device_id')?.slice(0, 8)}...
+              </button>
+            </div>
           </div>
 
           <div className="hud-top-right interactive">
@@ -1373,24 +1381,7 @@ function App() {
             </div>
           )}
 
-          <div className="premium-card">
-            <div className="premium-tag">x2 Farm Boost</div>
-            <h3>GENESIS Cybertruck</h3>
-            <p>[Cost: 2 500 KZT] Stand out in Alatau City. 2x Speed boost & Double your $CMKZ points.</p>
-            
-            {me?.isPremium ? (
-                 <div style={{ marginTop: '15px', padding: '10px', background: 'rgba(20, 241, 149, 0.1)', border: '1px solid #14F195', borderRadius: '8px', color: '#14F195', fontWeight: '900', fontSize: '11px', textAlign: 'center' }}>
-                   ✔️ GENESIS STATUS ACTIVE
-                 </div>
-            ) : (
-                 <button 
-                    style={{ marginTop: '10px', backgroundColor: '#eab308', color: '#000' }}
-                    onClick={() => setPremiumModal(true)}
-                 >
-                   ACTIVATE BY KASPI
-                 </button>
-            )}
-          </div>
+          {/* Карточка Genesis теперь открывается только через кнопку или модалку, убираем статичное положение */}
 
           {gameNotification && (
             <div className={`game-notification ${gameNotification.type}`}>
