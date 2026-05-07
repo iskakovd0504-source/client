@@ -4,6 +4,7 @@ import { Sky, Plane, Box, Text } from '@react-three/drei';
 import { io } from 'socket.io-client';
 import * as THREE from 'three';
 import { KASPI_QR_BASE64 } from './KaspiQR';
+import LandingPage from './LandingPage';
 
 // Используем переменную окружения для URL сервера, либо авто-определение для локальной разработки
 const SOCKET_URL = process.env.REACT_APP_SERVER_URL || 
@@ -993,49 +994,21 @@ function App() {
       </Canvas>
 
       {!inGame ? (
-        <div className="login-screen interactive">
-          <div className="login-card">
-            <div className="status-badge">
-              <span className="pulse-dot"></span> 
-              NETWORK ACTIVE: {totalUnits || Object.keys(players).length} PILOTS ONLINE
-            </div>
-            <h1>CRYPTOMARKET.KZ</h1>
-            <div className="subtitle">Decentralized Asset Distribution Protocol</div>
-            
-            <div className="game-rules">
-               <div>📦 Secure and distribute Solana Validator Nodes</div>
-               <div>🔫 Protect your cargo from rivals</div>
-               <div>💰 Exchange loot for $CMKZ at Alatau City</div>
-            </div>
-
-            <input 
-              type="text" 
-              placeholder="Enter Pilot ID..." 
-              maxLength={15}
-              value={nickname} 
-              onChange={e => {
-                setNickname(e.target.value);
-                nicknameRef.current = e.target.value;
-              }}
-              onKeyDown={e => e.key === 'Enter' && handleJoin()}
-            />
-            {(nickname.trim().toLowerCase() === 'admin' || authRequired) && (
-              <input 
-                type="password" 
-                placeholder={authRequired ? "Enter Access ID..." : "Admin Secret Key..."} 
-                className="interactive"
-                style={{ marginTop: '10px', background: 'rgba(234, 179, 8, 0.1)', border: '1px solid #eab308', borderRadius: '4px', padding: '14px', color: '#fff', width: '100%', outline: 'none' }}
-                value={adminKey} 
-                onChange={e => {
-                    setAdminKey(e.target.value);
-                    adminKeyRef.current = e.target.value;
-                }}
-                onKeyDown={e => e.key === 'Enter' && handleJoin()}
-              />
-            )}
-            <button onClick={handleJoin} style={{ marginTop: '20px' }}>START</button>
-          </div>
-        </div>
+        <LandingPage 
+            onJoin={handleJoin}
+            nickname={nickname}
+            setNickname={(val) => {
+                setNickname(val);
+                nicknameRef.current = val;
+            }}
+            adminKey={adminKey}
+            setAdminKey={(val) => {
+                setAdminKey(val);
+                adminKeyRef.current = val;
+            }}
+            authRequired={authRequired}
+            totalUnits={totalUnits}
+        />
       ) : (
         <div className="ui-layer">
           {nearBb && !rentModal && (() => {
