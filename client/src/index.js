@@ -2,7 +2,8 @@ import { Buffer } from 'buffer';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
-import App from './App';
+// import App from './App'; // Раскомментируйте эту строку и строку ниже, чтобы вернуть игру
+import SaleLanding from './SaleLanding';
 import reportWebVitals from './reportWebVitals';
 
 window.Buffer = Buffer;
@@ -10,7 +11,7 @@ window.Buffer = Buffer;
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <App />
+    <SaleLanding />
   </React.StrictMode>
 );
 
