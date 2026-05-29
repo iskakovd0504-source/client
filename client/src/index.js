@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 // import App from './App'; // Раскомментируйте эту строку и строку ниже, чтобы вернуть игру
 import SaleLanding from './SaleLanding';
+import { Analytics } from '@vercel/analytics/react';
 import reportWebVitals from './reportWebVitals';
 
 window.Buffer = Buffer;
@@ -12,6 +13,7 @@ const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
     <SaleLanding />
+    <Analytics />
   </React.StrictMode>
 );
 
