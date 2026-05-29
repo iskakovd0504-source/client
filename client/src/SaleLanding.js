@@ -103,58 +103,30 @@ const SaleLanding = () => {
 
         {/* Feature Grid */}
         <section className="features-section">
-          <h2 className="section-title">Что входит в предложение:</h2>
+          <h2 className="section-title">Преимущества предложения:</h2>
           <div className="features-grid">
             <div className="feature-card">
               <div className="card-icon">👑</div>
               <h3>Премиальный домен</h3>
-              <p>Звучное, авторитетное и легко запоминающееся имя в национальной зоне .kz, идеально подходящее под любой крипто-стартап.</p>
+              <p>Звучное, авторитетное и легко запоминающееся имя в национальной зоне .kz, идеально подходящее под любой масштабный крипто-стартап.</p>
             </div>
             
             <div className="feature-card">
-              <div className="card-icon">🕹️</div>
-              <h3>Код 3D-игры</h3>
-              <p>Инновационный трехмерный симулятор доставки «Air Delivery KZ» на React Three Fiber. Полностью рабочий интерактивный клиент.</p>
+              <div className="card-icon">💳</div>
+              <h3>P2P и Финтех</h3>
+              <p>Идеальный бренд для запуска криптовалютного обменника, P2P-платформы, фиатного шлюза или локального платежного сервиса.</p>
             </div>
 
             <div className="feature-card">
-              <div className="card-icon">⚡</div>
-              <h3>Интеграция с Solana</h3>
-              <p>Готовые скрипты и логика работы с блокчейном Solana, выпуск собственного игрового токена $CMKZ и система смарт-баланса.</p>
-            </div>
-
-            <div className="feature-card">
-              <div className="card-icon">🔌</div>
-              <h3>KaspiQR шлюз</h3>
-              <p>Разработанная система интеграции KaspiQR для быстрой монетизации, покупки или аренды игровых активов пользователями.</p>
-            </div>
-
-            <div className="feature-card">
-              <div className="card-icon">⚙️</div>
-              <h3>Серверный бэкенд</h3>
-              <p>Сервер Node.js на WebSockets (Socket.io) с базой данных SQLite, обеспечивающий мгновенную синхронизацию игроков в мире.</p>
+              <div className="card-icon">📈</div>
+              <h3>SEO-потенциал</h3>
+              <p>Прямое ключевое слово "cryptomarket" отлично ранжируется поисковыми системами и вызывает мгновенное доверие у пользователей.</p>
             </div>
 
             <div className="feature-card highlight-card">
               <div className="card-icon">🤝</div>
-              <h3>Гибкие условия</h3>
-              <p>Мы готовы рассмотреть как полную продажу домена с кодовой базой, так и партнерство с инвесторами или разработчиками.</p>
-            </div>
-          </div>
-        </section>
-
-        {/* Technical Stats Section */}
-        <section className="tech-section">
-          <div className="tech-info-card">
-            <h3>Готовность к запуску</h3>
-            <p>Вся инфраструктура проекта собрана в текущем репозитории. Вы получаете не просто домен, а готовый MVP проекта с возможностью развертывания за считанные минуты.</p>
-            <div className="tech-badges">
-              <span className="badge">React 19</span>
-              <span className="badge">Three.js (R3F)</span>
-              <span className="badge">Node.js</span>
-              <span className="badge">Socket.io</span>
-              <span className="badge">Solana Web3</span>
-              <span className="badge">SQLite</span>
+              <h3>Стратегическое партнерство</h3>
+              <p>Мы готовы рассмотреть как полную продажу доменного имени, так и различные варианты совместного запуска или инвестиций.</p>
             </div>
           </div>
         </section>

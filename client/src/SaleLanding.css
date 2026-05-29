@@ -16,6 +16,12 @@
 }
 
 /* Reset / Base overrides */
+html, body {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  height: auto !important;
+}
+
 .sale-landing-container {
   box-sizing: border-box;
   font-family: var(--font-family);
