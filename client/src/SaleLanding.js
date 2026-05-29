@@ -1,62 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import './SaleLanding.css';
 
 const SaleLanding = () => {
-  const [formData, setFormData] = useState({
-    name: '',
-    contact: '',
-    offer: '',
-    message: ''
-  });
-  
-  const [status, setStatus] = useState('idle'); // idle, sending, success, error
-  const [errorMsg, setErrorMsg] = useState('');
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    
-    if (!formData.name.trim() || !formData.contact.trim()) {
-      setErrorMsg('Пожалуйста, заполните поля "Имя" и "Контакт для связи".');
-      setStatus('error');
-      return;
-    }
-
-    setStatus('sending');
-    setErrorMsg('');
-
-    // Имитируем отправку на сервер (так как хостинг приостановлен)
-    setTimeout(() => {
-      try {
-        // Сохраняем в localStorage для демонстрации и сбора лидов локально
-        const existingOffers = JSON.parse(localStorage.getItem('cryptomarket_offers') || '[]');
-        const newOffer = {
-          ...formData,
-          id: Date.now(),
-          date: new Date().toLocaleString()
-        };
-        existingOffers.push(newOffer);
-        localStorage.setItem('cryptomarket_offers', JSON.stringify(existingOffers));
-        
-        console.log('Новое предложение получено и сохранено в LocalStorage:', newOffer);
-        
-        setStatus('success');
-      } catch (err) {
-        setErrorMsg('Произошла ошибка при сохранении предложения. Попробуйте еще раз.');
-        setStatus('error');
-      }
-    }, 1500);
-  };
-
-  const handleReset = () => {
-    setFormData({ name: '', contact: '', offer: '', message: '' });
-    setStatus('idle');
-    setErrorMsg('');
-  };
+  const whatsappUrl = "https://wa.me/77775556789?text=%D0%97%D0%B4%D1%80%D0%B0%D0%B2%D1%81%D1%82%D0%B2%D1%83%D0%B9%D1%82%D0%B5!%20%D0%AF%20%D0%BF%D0%BE%20%D0%BF%D0%BE%D0%B2%D0%BE%D0%B4%D1%83%20%D0%B4%D0%BE%D0%BC%D0%B5%D0%BD%D0%BD%D0%BE%D0%B3%D0%BE%20%D0%B8%D0%BC%D0%B5%D0%BD%D0%B8%20cryptomarket.kz";
 
   return (
     <div className="sale-landing-container">
@@ -87,7 +33,7 @@ const SaleLanding = () => {
           
           <div className="quick-actions">
             <a 
-              href="https://wa.me/77775556789" 
+              href={whatsappUrl} 
               target="_blank" 
               rel="noopener noreferrer" 
               className="wa-contact-btn"
@@ -131,122 +77,11 @@ const SaleLanding = () => {
           </div>
         </section>
 
-        {/* Contact/Offer Form */}
-        <section className="form-section" id="offer-form-section">
-          <div className="form-container-glass">
-            {status !== 'success' ? (
-              <>
-                <h2>Связаться или сделать предложение</h2>
-                <p className="form-description">
-                  Заполните форму ниже, чтобы предложить партнерство или цену за домен. Все сообщения будут сохранены и рассмотрены нашей командой.
-                </p>
-
-                <form onSubmit={handleSubmit} className="offer-form">
-                  <div className="form-group-row">
-                    <div className="form-group">
-                      <label htmlFor="name">Имя / Компания *</label>
-                      <input 
-                        type="text" 
-                        id="name" 
-                        name="name" 
-                        placeholder="Александр / Web3 Ventures" 
-                        value={formData.name}
-                        onChange={handleChange}
-                        required
-                        disabled={status === 'sending'}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label htmlFor="contact">Контакт для связи (TG/Email/Phone) *</label>
-                      <input 
-                        type="text" 
-                        id="contact" 
-                        name="contact" 
-                        placeholder="@username или email@domain.com" 
-                        value={formData.contact}
-                        onChange={handleChange}
-                        required
-                        disabled={status === 'sending'}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="offer">Предлагаемый бюджет или формат партнерства</label>
-                    <input 
-                      type="text" 
-                      id="offer" 
-                      name="offer" 
-                      placeholder="Например: $5,000 / Совместный запуск" 
-                      value={formData.offer}
-                      onChange={handleChange}
-                      disabled={status === 'sending'}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="message">Сообщение / Детали</label>
-                    <textarea 
-                      id="message" 
-                      name="message" 
-                      placeholder="Опишите ваши предложения или вопросы..." 
-                      rows="4"
-                      value={formData.message}
-                      onChange={handleChange}
-                      disabled={status === 'sending'}
-                    ></textarea>
-                  </div>
-
-                  {status === 'error' && (
-                    <div className="error-message">
-                      ⚠️ {errorMsg}
-                    </div>
-                  )}
-
-                  <button 
-                    type="submit" 
-                    className={`submit-btn ${status === 'sending' ? 'loading' : ''}`}
-                    disabled={status === 'sending'}
-                    id="submit_offer_button"
-                  >
-                    {status === 'sending' ? (
-                      <span className="spinner-loader"></span>
-                    ) : (
-                      'ОТПРАВИТЬ ПРЕДЛОЖЕНИЕ'
-                    )}
-                  </button>
-                </form>
-              </>
-            ) : (
-              <div className="success-screen">
-                <div className="success-icon-wrapper">
-                  <div className="success-icon">✓</div>
-                </div>
-                <h2>Предложение успешно отправлено!</h2>
-                <p>
-                  Большое спасибо за интерес к проекту CryptoMarket.kz. Мы получили ваши данные и свяжемся с вами по указанным контактам в течение 24 часов.
-                </p>
-                <div className="submitted-summary">
-                  <h4>Отправленные данные:</h4>
-                  <p><strong>Имя:</strong> {formData.name}</p>
-                  <p><strong>Контакт:</strong> {formData.contact}</p>
-                  {formData.offer && <p><strong>Предложение:</strong> {formData.offer}</p>}
-                </div>
-                <button onClick={handleReset} className="reset-btn">
-                  ОТПРАВИТЬ ЕЩЕ ОДНО СООБЩЕНИЕ
-                </button>
-              </div>
-            )}
-          </div>
-        </section>
-
         {/* Footer */}
         <footer className="sale-footer">
           <p>© 2026 CryptoMarket.kz. Все права защищены.</p>
           <div className="footer-links">
-            <a href="https://wa.me/77775556789" target="_blank" rel="noopener noreferrer">WhatsApp</a>
-            <span className="separator">•</span>
-            <a href="mailto:info@cryptomarket.kz">info@cryptomarket.kz</a>
+            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">WhatsApp</a>
           </div>
         </footer>
       </div>
